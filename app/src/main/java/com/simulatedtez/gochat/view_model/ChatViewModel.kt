@@ -129,9 +129,9 @@ class ChatViewModel(
     }
 
     fun markMessagesAsSeenIfEnabled(messages: List<Message>) {
-        if (session.isReadReceiptEnabled) {
-            messages.forEach {
-                if (it.seenTimestamp.isNullOrEmpty()) {
+        messages.forEach {
+            if (it.seenTimestamp.isNullOrEmpty()) {
+                if (it.isReadReceiptEnabled == true) {
                     chatRepo.markMessagesAsSeen(it)
                 }
             }

@@ -19,6 +19,8 @@ open class Message(
     @SerialName("seenTimestamp") open var seenTimestamp: String? = null,
     @SerialName("messageStatus") open val messageStatus: String? = null,
     @SerialName("presenceStatus") open val presenceStatus: String? = null,
+    @SerialName("isBackedUp") open val isBackedUp: Boolean? = null,
+    @SerialName("shouldDelete") open var shouldDelete: Boolean? = null,
     @SerialName("isReadReceiptEnabled") open val isReadReceiptEnabled: Boolean? = false
 ): ComparableMessage()
 

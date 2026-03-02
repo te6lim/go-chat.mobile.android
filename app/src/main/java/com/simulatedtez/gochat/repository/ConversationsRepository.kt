@@ -165,7 +165,7 @@ class ConversationsRepository(
     }
 
     override fun onReceive(message: Message) {
-        PresenceStatus.Companion.getType(message.presenceStatus)?.let {
+        PresenceStatus.getType(message.presenceStatus)?.let {
             context.launch(Dispatchers.Main) {
                 userPresenceHelper.handlePresenceMessage(
                     it, message.id, message.chatReference
@@ -174,7 +174,7 @@ class ConversationsRepository(
             return
         }
 
-        MessageStatus.Companion.getType(message.messageStatus)?.let {
+        MessageStatus.getType(message.messageStatus)?.let {
             conversationEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
             return
         }
@@ -192,7 +192,7 @@ class ConversationsRepository(
     }
 
     suspend fun addNewConversation(other: String, messageCount: Int) {
-        addNewChat(Session.Companion.session.username, other, messageCount) { isAdded ->
+        addNewChat(Session.session.username, other, messageCount) { isAdded ->
             if (isAdded) {
                 context.launch(Dispatchers.IO) {
                     connectToChatService()

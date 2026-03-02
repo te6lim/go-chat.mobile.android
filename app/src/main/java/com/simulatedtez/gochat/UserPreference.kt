@@ -14,6 +14,16 @@ object UserPreference {
         preferences = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
     }
 
+    fun isBackupEnabled(): Boolean {
+        return preferences.getBoolean(BACKUP_MESSAGES, false)
+    }
+
+    fun enableChatBackup() {
+        preferences.edit {
+            putBoolean(BACKUP_MESSAGES, true)
+        }
+    }
+
     fun canSharePresenceStatus(): Boolean {
         return preferences.getBoolean(PRESENCE_SHARING_TOGGLE, true)
     }
@@ -87,6 +97,7 @@ object UserPreference {
     }
 }
 
+const val BACKUP_MESSAGES = "backup-chat"
 const val PRESENCE_SHARING_TOGGLE = "presence-sharing-toggle"
 const val READ_RECEIPT_TOGGLE = "read-receipt-toggle"
 const val ACCESS_TOKEN_PREF = "access-token-pref"

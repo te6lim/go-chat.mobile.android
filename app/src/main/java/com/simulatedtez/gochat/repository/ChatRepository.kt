@@ -89,6 +89,10 @@ class ChatRepository(
         }
     }
 
+    fun sendMessageForBackupOrDeletion(message: Message) {
+        chatService.sendMessage(message.apply { shouldDelete = true })
+    }
+
     fun sendMessage(message: Message) {
         context.launch(Dispatchers.IO) {
             chatDb.store(message)
@@ -195,6 +199,7 @@ class ChatRepository(
                     chatDb.setAsSent((dbMessage.id to dbMessage.chatReference))
                 }
                 chatEventListener?.onMessageSent(message)
+                returnMessageToBackendForBackupOrDeletion(message)
             }
 
             !message.presenceStatus.isNullOrEmpty() -> {
@@ -206,10 +211,22 @@ class ChatRepository(
         }
     }
 
+    private fun returnMessageToBackendForBackupOrDeletion(message: Message) {
+        if (message.isReadReceiptEnabled == true) {
+            if (!message.seenTimestamp.isNullOrEmpty()) {
+                sendMessageForBackupOrDeletion(message)
+            }
+        } else {
+            if (!message.deliveredTimestamp.isNullOrEmpty()) {
+                sendMessageForBackupOrDeletion(message)
+            }
+        }
+    }
+
     private var lastMessagesFromRecipient = mutableListOf<Message>()
 
     override fun onReceive(message: Message) {
-        PresenceStatus.Companion.getType(message.presenceStatus)?.let {
+        PresenceStatus.getType(message.presenceStatus)?.let {
             context.launch(Dispatchers.Main) {
                 userPresenceHelper.handlePresenceMessage(
                     it, message.id, message.chatReference
@@ -220,7 +237,7 @@ class ChatRepository(
             return
         }
 
-        MessageStatus.Companion.getType(message.messageStatus)?.let {
+        MessageStatus.getType(message.messageStatus)?.let {
             context.launch(Dispatchers.Main) {
                 chatEventListener?.onReceiveRecipientMessageStatus(message.chatReference,it)
             }
@@ -277,7 +294,8 @@ class ChatRepository(
             receiver = chatInfo.recipientsUsernames[0],
             timestamp = LocalDateTime.now().toISOString(),
             chatReference = chatInfo.chatReference,
-            isReadReceiptEnabled = Session.Companion.session.isReadReceiptEnabled
+            isBackedUp = false,
+            isReadReceiptEnabled = Session.session.isReadReceiptEnabled
         )
     }
 }
