@@ -198,6 +198,7 @@ class ChatRepository(
                     val dbMessage = message.toDBMessage()
                     chatDb.setAsSent((dbMessage.id to dbMessage.chatReference))
                 }
+
                 chatEventListener?.onMessageSent(message)
                 returnMessageToBackendForBackupOrDeletion(message)
             }
