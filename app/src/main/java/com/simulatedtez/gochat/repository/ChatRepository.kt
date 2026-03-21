@@ -295,7 +295,6 @@ class ChatRepository(
             receiver = chatInfo.recipientsUsernames[0],
             timestamp = LocalDateTime.now().toISOString(),
             chatReference = chatInfo.chatReference,
-            isBackedUp = false,
             isReadReceiptEnabled = Session.session.isReadReceiptEnabled
         )
     }

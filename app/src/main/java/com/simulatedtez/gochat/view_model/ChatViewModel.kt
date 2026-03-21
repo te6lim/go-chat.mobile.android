@@ -75,6 +75,9 @@ class ChatViewModel(
     private val _recipientStatus = MutableLiveData<PresenceStatus>()
     val recipientStatus: LiveData<PresenceStatus> = _recipientStatus
 
+    private val _isInvitePending = MutableLiveData(false)
+    val isInvitePending: LiveData<Boolean> = _isInvitePending
+
     private val sentMessagesQueue: Queue<Message> = LinkedList()
     private val receivedMessagesQueue: Queue<Message> = LinkedList()
 
@@ -177,9 +180,8 @@ class ChatViewModel(
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
         when (messageStatus) {
-            MessageStatus.TYPING -> {
-                _isUserTyping.value = true
-            }
+            MessageStatus.TYPING -> _isUserTyping.value = true
+            MessageStatus.INVITE_PENDING -> _isInvitePending.value = true
             else -> _isUserTyping.value = false
         }
     }

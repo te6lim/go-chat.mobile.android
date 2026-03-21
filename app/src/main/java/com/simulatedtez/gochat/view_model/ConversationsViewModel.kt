@@ -12,13 +12,13 @@ import com.simulatedtez.gochat.database.ChatDatabase
 import com.simulatedtez.gochat.model.enums.MessageStatus
 import com.simulatedtez.gochat.remote.api_services.ChatApiService
 import com.simulatedtez.gochat.model.Message
+import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.listener.ConversationEventListener
 import com.simulatedtez.gochat.remote.api_services.ConversationsService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
-import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.repository.ConversationsRepository
 import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.ParentResponse
@@ -59,6 +59,12 @@ class ConversationsViewModel(
     private val _isUserTyping = MutableLiveData<Pair<String, Boolean>>()
     val isUserTyping: LiveData<Pair<String, Boolean>> = _isUserTyping
 
+    private val _chatInvite = MutableLiveData<Message?>()
+    val chatInvite: LiveData<Message?> = _chatInvite
+
+    private val _inviteResult = Channel<Pair<String, Boolean>>()
+    val inviteResult = _inviteResult.receiveAsFlow()
+
     private val receivedMessagesQueue: Queue<Message> = LinkedList()
 
     fun resetTokenExpired() {
@@ -78,6 +84,22 @@ class ConversationsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             conversationsRepository.addNewConversation(other, messageCount)
         }
+    }
+
+    fun deleteConversation(chatReference: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.deleteConversation(chatReference)
+        }
+    }
+
+    fun acceptInvite(chatReference: String) {
+        _chatInvite.value = null
+        conversationsRepository.acceptInvite(chatReference)
+    }
+
+    fun declineInvite(chatReference: String) {
+        _chatInvite.value = null
+        conversationsRepository.declineInvite(chatReference)
     }
 
     fun resetErrorMessage() {
@@ -145,6 +167,23 @@ class ConversationsViewModel(
         }
     }
 
+    override fun onChatInviteReceived(message: Message) {
+        _chatInvite.value = message
+    }
+
+    override fun onInviteAccepted(chatReference: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _inviteResult.send(chatReference to true)
+        }
+    }
+
+    override fun onInviteDeclined(chatReference: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _inviteResult.send(chatReference to false)
+            conversationsRepository.deleteConversation(chatReference)
+        }
+    }
+
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
         when (messageStatus) {
             MessageStatus.TYPING -> {
@@ -176,9 +215,11 @@ class ConversationsViewModel(
 
 class ConversationsViewModelProvider(private val context: Context): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        val chatApiService = ChatApiService(client)
         val repo = ConversationsRepository(
             AddNewChatUsecase(ConversationsService(client)),
-            createConversationsUsecase = CreateConversationsUsecase(ChatApiService(client)),
+            createConversationsUsecase = CreateConversationsUsecase(chatApiService),
+            chatApiService = chatApiService,
             ConversationDatabase.get(context),
             ChatDatabase.get(context)
         ).apply {

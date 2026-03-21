@@ -49,6 +49,10 @@ class ConversationDatabase private constructor(private val conversationsDao: Con
     suspend fun insertConversations(convos: List<DBConversation>) {
         conversationsDao.insert(convos)
     }
+
+    suspend fun deleteConversation(chatRef: String) {
+        conversationsDao.deleteByChatReference(chatRef)
+    }
 }
 
 @Entity(tableName = "conversations")

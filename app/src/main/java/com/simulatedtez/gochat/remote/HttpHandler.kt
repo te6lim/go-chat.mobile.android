@@ -5,6 +5,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.statement.HttpResponse
@@ -28,6 +29,12 @@ suspend fun HttpClient.postWithBaseUrl(endpoint: String, block: HttpRequestBuild
 
 suspend fun HttpClient.getWithBaseUrl(endpoint: String, block: HttpRequestBuilder.() -> Unit): HttpResponse {
     return get(BuildConfig.CHAT_HISTORY_BASE_URL + endpoint) {
+        block()
+    }
+}
+
+suspend fun HttpClient.deleteWithBaseUrl(endpoint: String, block: HttpRequestBuilder.() -> Unit): HttpResponse {
+    return delete(BuildConfig.CHAT_HISTORY_BASE_URL + endpoint) {
         block()
     }
 }

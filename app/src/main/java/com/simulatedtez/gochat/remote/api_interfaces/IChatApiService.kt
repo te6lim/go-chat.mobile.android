@@ -8,4 +8,5 @@ import com.simulatedtez.gochat.remote.ParentResponse
 interface IChatApiService {
     suspend fun createChatRoom(params: CreateChatRoomParams): IResponse<ParentResponse<String>>
     suspend fun createConversations(params: CreateConversationsParams): IResponse<ParentResponse<String>>
+    suspend fun deleteConversation(chatReference: String): IResponse<ParentResponse<String>>
 }

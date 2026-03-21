@@ -10,6 +10,7 @@ import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.listener.ConversationEventListener
+import com.simulatedtez.gochat.remote.api_interfaces.IChatApiService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsParams
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
@@ -20,15 +21,19 @@ import com.simulatedtez.gochat.remote.IResponseHandler
 import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.Response
 import com.simulatedtez.gochat.util.AppWideChatEventListener
+import com.simulatedtez.gochat.util.toISOString
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+import java.util.UUID
 
 class ConversationsRepository(
     private val addNewChatUsecase: AddNewChatUsecase,
     createConversationsUsecase: CreateConversationsUsecase,
+    private val chatApiService: IChatApiService,
     private val conversationDB: ConversationDatabase,
     chatDb: IChatStorage,
 ): AppWideChatEventListener(createConversationsUsecase, chatDb) {
@@ -175,7 +180,24 @@ class ConversationsRepository(
         }
 
         MessageStatus.getType(message.messageStatus)?.let {
-            conversationEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
+            when (it) {
+                MessageStatus.CHAT_INVITE -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onChatInviteReceived(message)
+                    }
+                }
+                MessageStatus.INVITE_ACCEPTED -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onInviteAccepted(message.chatReference)
+                    }
+                }
+                MessageStatus.INVITE_DECLINED -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onInviteDeclined(message.chatReference)
+                    }
+                }
+                else -> conversationEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
+            }
             return
         }
 
@@ -189,6 +211,37 @@ class ConversationsRepository(
                 message.chatReference, false)
             conversationEventListener?.onReceive(message)
         }
+    }
+
+    suspend fun deleteConversation(chatReference: String) {
+        chatApiService.deleteConversation(chatReference)
+        conversationDB.deleteConversation(chatReference)
+    }
+
+    fun acceptInvite(chatReference: String) {
+        val message = Message(
+            id = UUID.randomUUID().toString(),
+            message = "",
+            sender = Session.session.username,
+            receiver = "",
+            timestamp = LocalDateTime.now().toISOString(),
+            chatReference = chatReference,
+            messageStatus = MessageStatus.ACCEPT_INVITE.name
+        )
+        Session.session.appWideChatService?.sendMessage(message)
+    }
+
+    fun declineInvite(chatReference: String) {
+        val message = Message(
+            id = UUID.randomUUID().toString(),
+            message = "",
+            sender = Session.session.username,
+            receiver = "",
+            timestamp = LocalDateTime.now().toISOString(),
+            chatReference = chatReference,
+            messageStatus = MessageStatus.DECLINE_INVITE.name
+        )
+        Session.session.appWideChatService?.sendMessage(message)
     }
 
     suspend fun addNewConversation(other: String, messageCount: Int) {
