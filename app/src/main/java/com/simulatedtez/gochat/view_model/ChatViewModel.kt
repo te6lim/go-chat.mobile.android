@@ -145,6 +145,10 @@ class ChatViewModel(
         chatRepo.connectAndSendPendingMessages()
     }
 
+    fun deleteMessage(message: com.simulatedtez.gochat.model.Message) {
+        chatRepo.sendMessageForBackupOrDeletion(message)
+    }
+
     fun exitChat() {
         chatRepo.killChatService()
     }

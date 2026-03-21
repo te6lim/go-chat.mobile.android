@@ -1,7 +1,9 @@
 package com.simulatedtez.gochat.view
 
-import androidx.compose.foundation.Image
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,13 +16,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.DividerDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -31,10 +34,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,9 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -66,16 +71,29 @@ import androidx.navigation.compose.rememberNavController
 import com.simulatedtez.gochat.GoChatApplication
 import com.simulatedtez.gochat.R
 import com.simulatedtez.gochat.Session.Companion.session
-import com.simulatedtez.gochat.model.enums.AuthScreens
-import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.database.DBConversation
-import com.simulatedtez.gochat.view_model.ConversationsViewModel
-import com.simulatedtez.gochat.view_model.ConversationsViewModelProvider
+import com.simulatedtez.gochat.model.ChatInfo
+import com.simulatedtez.gochat.model.enums.AuthScreens
 import com.simulatedtez.gochat.ui.theme.GoChatTheme
 import com.simulatedtez.gochat.util.INetworkMonitor
 import com.simulatedtez.gochat.util.NetworkMonitor
 import com.simulatedtez.gochat.util.formatTimestamp
+import com.simulatedtez.gochat.view_model.ConversationsViewModel
+import com.simulatedtez.gochat.view_model.ConversationsViewModelProvider
 import io.ktor.websocket.Frame
+import kotlin.math.abs
+
+// Avatar colors — deterministic per username
+private val avatarPalette = listOf(
+    Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFF6A1B9A),
+    Color(0xFFC62828), Color(0xFF00695C), Color(0xFFE65100),
+    Color(0xFF37474F), Color(0xFFAD1457)
+)
+
+private fun avatarColorFor(name: String): Color =
+    avatarPalette[abs(name.hashCode()) % avatarPalette.size]
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,7 +102,6 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     val app = LocalContext.current.applicationContext as GoChatApplication
 
     val snackbarHostState = remember { SnackbarHostState() }
-
     val conversations = remember { mutableStateListOf<DBConversation>() }
 
     val viewModelFactory = remember { ConversationsViewModelProvider(context) }
@@ -95,44 +112,29 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     val conversationHistory by viewModel.conversations.observeAsState(listOf())
     val errorMessage by viewModel.errorMessage.observeAsState()
     val isUserTyping by viewModel.isUserTyping.observeAsState()
-
-    val isConnected by viewModel.isConnected.observeAsState()
-
     val tokenExpired by viewModel.tokenExpired.observeAsState()
-
     val chatInvite by viewModel.chatInvite.observeAsState()
+    val inviteResult by viewModel.inviteResult.collectAsState(null)
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
-    val networkCallbacks = object: NetworkMonitor.Callbacks {
-        override fun onAvailable() {
-            viewModel.connectToChatService()
-        }
-
-        override fun onLost() {
-
-        }
+    val networkCallbacks = object : NetworkMonitor.Callbacks {
+        override fun onAvailable() { viewModel.connectToChatService() }
+        override fun onLost() {}
     }
     (app as INetworkMonitor).setCallback(networkCallbacks)
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(Unit) {
         val observer = LifecycleEventObserver { _, event ->
-
             when (event) {
-                Lifecycle.Event.ON_CREATE -> {
-                    viewModel.fetchConversations()
-                }
+                Lifecycle.Event.ON_CREATE -> viewModel.fetchConversations()
                 else -> {}
             }
         }
-
         lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(tokenExpired) {
@@ -141,16 +143,6 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                 navigate(AuthScreens.LOGIN.name)
                 viewModel.resetTokenExpired()
             }
-        }
-    }
-
-    LaunchedEffect(isConnected) {
-        isConnected?.let {
-            /*if (it) {
-                snackbarHostState.showSnackbar("socket is connected")
-            } else {
-                snackbarHostState.showSnackbar("socket is disconnected")
-            }*/
         }
     }
 
@@ -173,8 +165,22 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
 
     LaunchedEffect(newConversation) {
         newConversation?.let {
-            conversations.add(it)
+            if (conversations.none { c -> c.chatReference == it.chatReference }) {
+                conversations.add(it)
+            }
             showBottomSheet = false
+        }
+    }
+
+    LaunchedEffect(inviteResult) {
+        inviteResult?.let { (chatRef, accepted) ->
+            if (accepted) {
+                // Refresh conversations to pick up the newly accepted chat
+                viewModel.fetchConversations()
+            } else {
+                conversations.removeIf { it.chatReference == chatRef }
+                snackbarHostState.showSnackbar("Invitation declined.")
+            }
         }
     }
 
@@ -191,26 +197,88 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    showBottomSheet = true
-                },
+                onClick = { showBottomSheet = true },
                 containerColor = MaterialTheme.colorScheme.secondary
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "New Chat", tint = Color.White)
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            items(conversations) { chat ->
-                ChatItem(chat = chat, isUserTyping, screenActions)
+            if (conversations.isEmpty()) {
+                // Empty state
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                ) {
+                    Text(
+                        text = "No chats yet",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Tap + to start a conversation",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(
+                        conversations,
+                        key = { it.chatReference }
+                    ) { chat ->
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value == SwipeToDismissBoxValue.EndToStart) {
+                                    conversations.remove(chat)
+                                    viewModel.deleteConversation(chat.chatReference)
+                                    true
+                                } else false
+                            }
+                        )
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = false,
+                            backgroundContent = {
+                                val bgColor by animateColorAsState(
+                                    targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
+                                        Color(0xFFD32F2F) else Color.Transparent,
+                                    label = "swipe-bg"
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(bgColor)
+                                        .padding(end = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Delete",
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        ) {
+                            ChatItem(chat = chat, isUserTyping = isUserTyping, screenActions = screenActions)
+                        }
+                    }
+                }
             }
         }
     }
 
+    // Chat invite dialog
     chatInvite?.let { invite ->
         AlertDialog(
             onDismissRequest = {},
@@ -236,19 +304,26 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
         ) {
             NewChatSheetContent(
                 !waiting,
-                onAddClick = { username ->
-                    viewModel.addNewConversation(username, 0)
-                }
+                onAddClick = { username -> viewModel.addNewConversation(username, 0) }
             )
         }
     }
 }
 
+// ── Chat list item ────────────────────────────────────────────────────────────
+
 @Composable
-fun ChatItem(chat: DBConversation, typingUser: Pair<String, Boolean>?, screenActions: ConversationsScreenActions) {
+fun ChatItem(
+    chat: DBConversation,
+    isUserTyping: Pair<String, Boolean>?,
+    screenActions: ConversationsScreenActions
+) {
+    val isUnread = chat.unreadCount > 0
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
             .clickable {
                 screenActions.onChatClicked(
                     ChatInfo(
@@ -261,26 +336,31 @@ fun ChatItem(chat: DBConversation, typingUser: Pair<String, Boolean>?, screenAct
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_default_user_image),
-            contentDescription = "Profile Picture",
+        // Initial-letter avatar
+        Box(
             modifier = Modifier
                 .size(50.dp)
-                .clip(CircleShape),
-            contentScale = ContentScale.Crop
-        )
+                .clip(CircleShape)
+                .background(avatarColorFor(chat.otherUser)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = chat.otherUser.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+        }
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = chat.otherUser,
-                fontWeight = FontWeight.Bold,
+                fontWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.SemiBold,
                 fontSize = 16.sp
             )
-            if (typingUser?.first == chat.chatReference && typingUser.second) {
+            if (isUserTyping?.first == chat.chatReference && isUserTyping.second) {
                 Text(
                     text = "typing...",
                     fontSize = 14.sp,
@@ -291,27 +371,26 @@ fun ChatItem(chat: DBConversation, typingUser: Pair<String, Boolean>?, screenAct
             } else {
                 Text(
                     text = chat.lastMessage,
-                    color = Color.Gray,
-                    maxLines = 1
+                    color = if (isUnread) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                    fontWeight = if (isUnread) FontWeight.Medium else FontWeight.Normal,
+                    maxLines = 1,
+                    fontSize = 14.sp
                 )
             }
         }
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        Column(
-            horizontalAlignment = Alignment.End
-        ) {
+        Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = formatTimestamp(chat.timestamp),
-                color = Color.Gray,
-                fontSize = 12.sp
+                color = if (isUnread) MaterialTheme.colorScheme.primary else Color.Gray,
+                fontSize = 12.sp,
+                fontWeight = if (isUnread) FontWeight.SemiBold else FontWeight.Normal
             )
-            if (chat.unreadCount > 0) {
+            if (isUnread) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
+                Badge(containerColor = MaterialTheme.colorScheme.primary) {
                     Text(text = chat.unreadCount.toString(), color = Color.White)
                 }
             }
@@ -324,12 +403,11 @@ fun ChatItem(chat: DBConversation, typingUser: Pair<String, Boolean>?, screenAct
     )
 }
 
-
+// ── New chat sheet ────────────────────────────────────────────────────────────
 
 @Composable
-fun NewChatSheetContent(isEnabled:Boolean, onAddClick: (String) -> Unit) {
+fun NewChatSheetContent(isEnabled: Boolean, onAddClick: (String) -> Unit) {
     var username by remember { mutableStateOf("") }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -338,7 +416,6 @@ fun NewChatSheetContent(isEnabled:Boolean, onAddClick: (String) -> Unit) {
     ) {
         Text("Start a new chat", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(16.dp))
-
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
@@ -347,7 +424,6 @@ fun NewChatSheetContent(isEnabled:Boolean, onAddClick: (String) -> Unit) {
             singleLine = true
         )
         Spacer(modifier = Modifier.height(16.dp))
-
         Button(
             onClick = { onAddClick(username) },
             modifier = Modifier.fillMaxWidth(),
@@ -355,9 +431,11 @@ fun NewChatSheetContent(isEnabled:Boolean, onAddClick: (String) -> Unit) {
         ) {
             Text("Add")
         }
-        Spacer(modifier = Modifier.height(16.dp)) // Add padding at the bottom
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
+
+// ── Actions interface ─────────────────────────────────────────────────────────
 
 interface ConversationsScreenActions {
     fun onChatClicked(chatInfo: ChatInfo)
@@ -368,10 +446,8 @@ interface ConversationsScreenActions {
 fun ConversationsPreview() {
     GoChatTheme {
         rememberNavController().ConversationsScreen(
-            screenActions = object: ConversationsScreenActions {
-                override fun onChatClicked(chatInfo: ChatInfo) {
-
-                }
+            screenActions = object : ConversationsScreenActions {
+                override fun onChatClicked(chatInfo: ChatInfo) {}
             }
         )
     }
