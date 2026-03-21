@@ -16,9 +16,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -97,6 +99,8 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     val isConnected by viewModel.isConnected.observeAsState()
 
     val tokenExpired by viewModel.tokenExpired.observeAsState()
+
+    val chatInvite by viewModel.chatInvite.observeAsState()
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -205,6 +209,24 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                 ChatItem(chat = chat, isUserTyping, screenActions)
             }
         }
+    }
+
+    chatInvite?.let { invite ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Chat Invitation") },
+            text = { Text("${invite.sender} wants to chat with you.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.acceptInvite(invite.chatReference) }) {
+                    Text("Accept")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.declineInvite(invite.chatReference) }) {
+                    Text("Decline")
+                }
+            }
+        )
     }
 
     if (showBottomSheet) {

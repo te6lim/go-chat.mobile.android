@@ -7,6 +7,7 @@ import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.Response
 import com.simulatedtez.gochat.remote.api_interfaces.IChatApiService
+import com.simulatedtez.gochat.remote.deleteWithBaseUrl
 import com.simulatedtez.gochat.remote.postWithBaseUrl
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
@@ -26,7 +27,15 @@ class ChatApiService(private val client: HttpClient): IChatApiService {
 
     override suspend fun createConversations(params: CreateConversationsParams): IResponse<ParentResponse<String>> {
         return Response<String> {
-            client.postWithBaseUrl("/interactions/${params.request.username}") {
+            client.postWithBaseUrl("/conversations/${params.request.username}") {
+                header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            }
+        }.invoke()
+    }
+
+    override suspend fun deleteConversation(chatReference: String): IResponse<ParentResponse<String>> {
+        return Response<String> {
+            client.deleteWithBaseUrl("/conversations/$chatReference") {
                 header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
             }
         }.invoke()
