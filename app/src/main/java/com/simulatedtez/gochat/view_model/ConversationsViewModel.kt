@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.ChatDatabase
+import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.enums.MessageStatus
 import com.simulatedtez.gochat.remote.api_services.ChatApiService
 import com.simulatedtez.gochat.model.Message
@@ -59,11 +60,11 @@ class ConversationsViewModel(
     private val _isUserTyping = MutableLiveData<Pair<String, Boolean>>()
     val isUserTyping: LiveData<Pair<String, Boolean>> = _isUserTyping
 
-    private val _chatInvite = MutableLiveData<Message?>()
-    val chatInvite: LiveData<Message?> = _chatInvite
+    private val _pendingInvites = MutableLiveData<List<Message>>(emptyList())
+    val pendingInvites: LiveData<List<Message>> = _pendingInvites
 
-    private val _inviteResult = Channel<Pair<String, Boolean>>()
-    val inviteResult = _inviteResult.receiveAsFlow()
+    private val _acceptedInviteChat = Channel<ChatInfo>(Channel.BUFFERED)
+    val acceptedInviteChat = _acceptedInviteChat.receiveAsFlow()
 
     private val receivedMessagesQueue: Queue<Message> = LinkedList()
 
@@ -93,12 +94,25 @@ class ConversationsViewModel(
     }
 
     fun acceptInvite(chatReference: String) {
-        _chatInvite.value = null
+        val invite = _pendingInvites.value?.find { it.chatReference == chatReference } ?: return
+        _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
         conversationsRepository.acceptInvite(chatReference)
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.storeConversation(
+                DBConversation(chatReference = chatReference, otherUser = invite.sender)
+            )
+            _acceptedInviteChat.send(
+                ChatInfo(
+                    username = session.username,
+                    recipientsUsernames = listOf(invite.sender),
+                    chatReference = chatReference
+                )
+            )
+        }
     }
 
     fun declineInvite(chatReference: String) {
-        _chatInvite.value = null
+        _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
         conversationsRepository.declineInvite(chatReference)
     }
 
@@ -168,20 +182,26 @@ class ConversationsViewModel(
     }
 
     override fun onChatInviteReceived(message: Message) {
-        _chatInvite.value = message
+        val current = _pendingInvites.value ?: emptyList()
+        if (current.none { it.chatReference == message.chatReference }) {
+            _pendingInvites.value = current + message
+        }
     }
 
     override fun onInviteAccepted(chatReference: String) {
+        // Someone accepted OUR invite — refresh conversations
         viewModelScope.launch(Dispatchers.IO) {
-            _inviteResult.send(chatReference to true)
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
         }
     }
 
     override fun onInviteDeclined(chatReference: String) {
+        // Someone declined OUR invite — clean up locally and notify user
         viewModelScope.launch(Dispatchers.IO) {
-            _inviteResult.send(chatReference to false)
             conversationsRepository.deleteConversation(chatReference)
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
         }
+        _errorMessage.postValue("Your invitation was declined.")
     }
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {

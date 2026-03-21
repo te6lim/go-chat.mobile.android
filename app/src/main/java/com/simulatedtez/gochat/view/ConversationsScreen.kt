@@ -3,6 +3,7 @@ package com.simulatedtez.gochat.view
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,10 +20,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -30,6 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -37,7 +41,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -69,10 +72,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.simulatedtez.gochat.GoChatApplication
-import com.simulatedtez.gochat.R
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.model.ChatInfo
+import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.model.enums.AuthScreens
 import com.simulatedtez.gochat.ui.theme.GoChatTheme
 import com.simulatedtez.gochat.util.INetworkMonitor
@@ -83,7 +86,8 @@ import com.simulatedtez.gochat.view_model.ConversationsViewModelProvider
 import io.ktor.websocket.Frame
 import kotlin.math.abs
 
-// Avatar colors — deterministic per username
+// ── Avatar helpers ────────────────────────────────────────────────────────────
+
 private val avatarPalette = listOf(
     Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFF6A1B9A),
     Color(0xFFC62828), Color(0xFF00695C), Color(0xFFE65100),
@@ -93,6 +97,24 @@ private val avatarPalette = listOf(
 private fun avatarColorFor(name: String): Color =
     avatarPalette[abs(name.hashCode()) % avatarPalette.size]
 
+@Composable
+private fun LetterAvatar(name: String, size: Int = 50) {
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(avatarColorFor(name)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = (size * 0.4).sp
+        )
+    }
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,7 +122,6 @@ private fun avatarColorFor(name: String): Color =
 fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions) {
 
     val app = LocalContext.current.applicationContext as GoChatApplication
-
     val snackbarHostState = remember { SnackbarHostState() }
     val conversations = remember { mutableStateListOf<DBConversation>() }
 
@@ -113,8 +134,8 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     val errorMessage by viewModel.errorMessage.observeAsState()
     val isUserTyping by viewModel.isUserTyping.observeAsState()
     val tokenExpired by viewModel.tokenExpired.observeAsState()
-    val chatInvite by viewModel.chatInvite.observeAsState()
-    val inviteResult by viewModel.inviteResult.collectAsState(null)
+    val pendingInvites by viewModel.pendingInvites.observeAsState(emptyList())
+    val acceptedInviteChat by viewModel.acceptedInviteChat.collectAsState(null)
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -172,16 +193,9 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
         }
     }
 
-    LaunchedEffect(inviteResult) {
-        inviteResult?.let { (chatRef, accepted) ->
-            if (accepted) {
-                // Refresh conversations to pick up the newly accepted chat
-                viewModel.fetchConversations()
-            } else {
-                conversations.removeIf { it.chatReference == chatRef }
-                snackbarHostState.showSnackbar("Invitation declined.")
-            }
-        }
+    // Navigate into chat immediately on accepting an invite
+    LaunchedEffect(acceptedInviteChat) {
+        acceptedInviteChat?.let { screenActions.onChatClicked(it) }
     }
 
     Scaffold(
@@ -209,14 +223,14 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (conversations.isEmpty()) {
+            if (pendingInvites.isEmpty() && conversations.isEmpty()) {
                 // Empty state
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
                         text = "No chats yet",
@@ -233,10 +247,18 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(
-                        conversations,
-                        key = { it.chatReference }
-                    ) { chat ->
+
+                    // Pending invites — always at the top
+                    items(pendingInvites, key = { "invite_${it.chatReference}" }) { invite ->
+                        PendingInviteItem(
+                            invite = invite,
+                            onAccept = { viewModel.acceptInvite(invite.chatReference) },
+                            onDecline = { viewModel.declineInvite(invite.chatReference) }
+                        )
+                    }
+
+                    // Regular conversations — swipe-to-delete
+                    items(conversations, key = { it.chatReference }) { chat ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
                                 if (value == SwipeToDismissBoxValue.EndToStart) {
@@ -262,11 +284,7 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                                         .padding(end = 20.dp),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "Delete",
-                                        tint = Color.White
-                                    )
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
                                 }
                             }
                         ) {
@@ -276,25 +294,6 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                 }
             }
         }
-    }
-
-    // Chat invite dialog
-    chatInvite?.let { invite ->
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("Chat Invitation") },
-            text = { Text("${invite.sender} wants to chat with you.") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.acceptInvite(invite.chatReference) }) {
-                    Text("Accept")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.declineInvite(invite.chatReference) }) {
-                    Text("Decline")
-                }
-            }
-        )
     }
 
     if (showBottomSheet) {
@@ -310,7 +309,96 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     }
 }
 
-// ── Chat list item ────────────────────────────────────────────────────────────
+// ── Pending invite item ───────────────────────────────────────────────────────
+
+@Composable
+fun PendingInviteItem(
+    invite: Message,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LetterAvatar(name = invite.sender)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = invite.sender,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "wants to chat with you",
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    fontStyle = FontStyle.Italic
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Accept — filled green pill
+            Button(
+                onClick = onAccept,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2E7D32)
+                )
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Accept", color = Color.White, fontSize = 13.sp)
+            }
+
+            // Decline — outlined red pill
+            OutlinedButton(
+                onClick = onDecline,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFFC62828)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC62828))
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color(0xFFC62828)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Decline", fontSize = 13.sp)
+            }
+        }
+    }
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 82.dp),
+        thickness = DividerDefaults.Thickness,
+        color = DividerDefaults.color
+    )
+}
+
+// ── Regular chat item ─────────────────────────────────────────────────────────
 
 @Composable
 fun ChatItem(
@@ -336,21 +424,7 @@ fun ChatItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Initial-letter avatar
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .clip(CircleShape)
-                .background(avatarColorFor(chat.otherUser)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = chat.otherUser.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
-        }
+        LetterAvatar(name = chat.otherUser)
 
         Spacer(modifier = Modifier.width(16.dp))
 
