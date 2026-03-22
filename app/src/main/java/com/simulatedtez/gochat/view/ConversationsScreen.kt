@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.simulatedtez.gochat.model.enums.PresenceStatus
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -151,6 +152,8 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_CREATE -> viewModel.fetchConversations()
+                Lifecycle.Event.ON_RESUME -> viewModel.postPresence(PresenceStatus.ONLINE)
+                Lifecycle.Event.ON_PAUSE -> viewModel.postPresence(PresenceStatus.AWAY)
                 else -> {}
             }
         }

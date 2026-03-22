@@ -11,6 +11,7 @@ import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.ChatDatabase
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.enums.MessageStatus
+import com.simulatedtez.gochat.model.enums.PresenceStatus
 import com.simulatedtez.gochat.remote.api_services.ChatApiService
 import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.model.response.NewChatResponse
@@ -142,6 +143,10 @@ class ConversationsViewModel(
         if (response.response?.statusCode == HttpStatusCode.Unauthorized.value) {
             _tokenExpired.value = true
         }
+    }
+
+    fun postPresence(presenceStatus: PresenceStatus) {
+        conversationsRepository.userPresenceHelper.postNewUserPresence(presenceStatus)
     }
 
     fun connectToChatService() {
