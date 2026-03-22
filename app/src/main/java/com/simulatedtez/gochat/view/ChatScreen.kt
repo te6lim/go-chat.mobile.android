@@ -158,6 +158,7 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
     val typingTimeLeft by chatViewModel.typingTimeLeft.observeAsState()
     val isUserTyping by chatViewModel.isUserTyping.observeAsState()
     val isInvitePending by chatViewModel.isInvitePending.observeAsState(false)
+    val recipientMessageStatus by chatViewModel.recipientMessageStatus.observeAsState(null)
 
     val listState = rememberLazyListState()
     val showScrollToBottom by remember { derivedStateOf { listState.firstVisibleItemIndex > 2 } }
@@ -217,6 +218,19 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
             messages.clear()
             messages.addAll(modifiedMessages)
             chatViewModel.popSentMessagesQueue()
+        }
+    }
+
+    LaunchedEffect(recipientMessageStatus) {
+        recipientMessageStatus?.let { newStatus ->
+            val updated = messages.map { uiMsg ->
+                if (uiMsg.message.sender == session.username && uiMsg.status.ordinal < newStatus.ordinal) {
+                    uiMsg.copy(status = newStatus)
+                } else uiMsg
+            }
+            messages.clear()
+            messages.addAll(updated)
+            chatViewModel.resetRecipientMessageStatus()
         }
     }
 
