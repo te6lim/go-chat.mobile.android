@@ -47,7 +47,20 @@ class ConversationsRepository(
     }
 
     suspend fun getConversations(): List<DBConversation> {
-        return conversationDB.getConversations()
+        val local = conversationDB.getConversations()
+        if (local.isNotEmpty()) return local
+
+        // Fresh install — seed from backend.
+        val response = chatApiService.fetchUserConversations(Session.session.username)
+        if (response is IResponse.Success) {
+            val summaries = response.data?.data ?: return emptyList()
+            val seeded = summaries.map { s ->
+                DBConversation(chatReference = s.chatReference, otherUser = s.otherUsername)
+            }
+            conversationDB.insertConversations(seeded)
+            return seeded
+        }
+        return emptyList()
     }
 
     override suspend fun createNewConversations(onSuccess: (() -> Unit)) {

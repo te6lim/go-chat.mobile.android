@@ -1,5 +1,6 @@
 package com.simulatedtez.gochat.remote.api_interfaces
 
+import com.simulatedtez.gochat.model.response.ConversationSummary
 import com.simulatedtez.gochat.remote.api_usecases.CreateChatRoomParams
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsParams
 import com.simulatedtez.gochat.remote.IResponse
@@ -9,4 +10,5 @@ interface IChatApiService {
     suspend fun createChatRoom(params: CreateChatRoomParams): IResponse<ParentResponse<String>>
     suspend fun createConversations(params: CreateConversationsParams): IResponse<ParentResponse<String>>
     suspend fun deleteConversation(chatReference: String): IResponse<ParentResponse<String>>
+    suspend fun fetchUserConversations(username: String): IResponse<ParentResponse<List<ConversationSummary>>>
 }
