@@ -171,7 +171,7 @@ class ChatViewModel(
         _isConnected.value = false
     }
 
-    override fun onError(error: ChatServiceErrorResponse<*>) {
+    override fun onError(error: ChatServiceErrorResponse<Message>) {
         Napier.d(error.reason)
         if (error.statusCode == HttpStatusCode.Unauthorized.value) {
             _tokenExpired.value = true

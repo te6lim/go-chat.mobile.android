@@ -100,7 +100,7 @@ open class AppWideChatEventListener(
 
     }
 
-    override fun onError(response: ChatServiceErrorResponse<*>) {
+    override fun onError(response: ChatServiceErrorResponse<Message>) {
 
     }
 

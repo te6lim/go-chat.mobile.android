@@ -161,7 +161,7 @@ class ConversationsRepository(
         conversationEventListener?.onDisconnect(t, response)
     }
 
-    override fun onError(response: ChatServiceErrorResponse<*>) {
+    override fun onError(response: ChatServiceErrorResponse<Message>) {
         conversationEventListener?.onError(response)
     }
 
