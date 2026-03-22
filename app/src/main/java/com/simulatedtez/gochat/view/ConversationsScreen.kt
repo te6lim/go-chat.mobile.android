@@ -152,8 +152,8 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_CREATE -> viewModel.fetchConversations()
-                Lifecycle.Event.ON_RESUME -> viewModel.postPresence(PresenceStatus.ONLINE)
-                Lifecycle.Event.ON_PAUSE -> viewModel.postPresence(PresenceStatus.AWAY)
+                Lifecycle.Event.ON_RESUME -> viewModel.postPresence(PresenceStatus.AWAY)
+                else -> {}
                 else -> {}
             }
         }
