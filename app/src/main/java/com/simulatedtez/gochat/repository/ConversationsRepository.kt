@@ -124,7 +124,8 @@ class ConversationsRepository(
                                        lastMessage = "",
                                        timestamp = "",
                                        unreadCount = messageCount,
-                                       contactAvi = ""
+                                       contactAvi = "",
+                                       isPendingSentInvite = true
                                    )
                                )
                            }
@@ -196,6 +197,11 @@ class ConversationsRepository(
                         conversationEventListener?.onInviteDeclined(message.chatReference)
                     }
                 }
+                MessageStatus.INVITE_REVOKED -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onInviteRevoked(message.chatReference)
+                    }
+                }
                 else -> conversationEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
             }
             return
@@ -216,6 +222,10 @@ class ConversationsRepository(
     suspend fun deleteConversation(chatReference: String) {
         chatApiService.deleteConversation(chatReference)
         conversationDB.deleteConversation(chatReference)
+    }
+
+    suspend fun clearPendingSentInvite(chatReference: String) {
+        conversationDB.markAsPendingSentInvite(chatReference, false)
     }
 
     fun acceptInvite(chatReference: String) {

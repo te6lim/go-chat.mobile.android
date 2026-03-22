@@ -125,6 +125,7 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     val app = LocalContext.current.applicationContext as GoChatApplication
     val snackbarHostState = remember { SnackbarHostState() }
     val conversations = remember { mutableStateListOf<DBConversation>() }
+    val pendingSentInvites = remember { mutableStateListOf<DBConversation>() }
 
     val viewModelFactory = remember { ConversationsViewModelProvider(context) }
     val viewModel: ConversationsViewModel = viewModel(factory = viewModelFactory)
@@ -180,7 +181,9 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     LaunchedEffect(conversationHistory) {
         if (conversationHistory.isNotEmpty()) {
             conversations.clear()
-            conversations.addAll(conversationHistory)
+            conversations.addAll(conversationHistory.filter { !it.isPendingSentInvite })
+            pendingSentInvites.clear()
+            pendingSentInvites.addAll(conversationHistory.filter { it.isPendingSentInvite })
             viewModel.connectToChatService()
         }
         viewModel.popReceivedMessagesQueue()
@@ -188,8 +191,14 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
 
     LaunchedEffect(newConversation) {
         newConversation?.let {
-            if (conversations.none { c -> c.chatReference == it.chatReference }) {
-                conversations.add(it)
+            if (it.isPendingSentInvite) {
+                if (pendingSentInvites.none { c -> c.chatReference == it.chatReference }) {
+                    pendingSentInvites.add(it)
+                }
+            } else {
+                if (conversations.none { c -> c.chatReference == it.chatReference }) {
+                    conversations.add(it)
+                }
             }
             showBottomSheet = false
         }
@@ -225,7 +234,7 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (pendingInvites.isEmpty() && conversations.isEmpty()) {
+            if (pendingInvites.isEmpty() && pendingSentInvites.isEmpty() && conversations.isEmpty()) {
                 // Empty state
                 Column(
                     modifier = Modifier
@@ -250,13 +259,48 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
 
-                    // Pending invites — always at the top
+                    // Received invites — always at the top
                     items(pendingInvites, key = { "invite_${it.chatReference}" }) { invite ->
                         PendingInviteItem(
                             invite = invite,
                             onAccept = { viewModel.acceptInvite(invite.chatReference) },
                             onDecline = { viewModel.declineInvite(invite.chatReference) }
                         )
+                    }
+
+                    // Sent invites awaiting response — swipe to revoke
+                    items(pendingSentInvites, key = { "sent_${it.chatReference}" }) { chat ->
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value == SwipeToDismissBoxValue.EndToStart) {
+                                    pendingSentInvites.remove(chat)
+                                    viewModel.deleteConversation(chat.chatReference)
+                                    true
+                                } else false
+                            }
+                        )
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = false,
+                            backgroundContent = {
+                                val bgColor by animateColorAsState(
+                                    targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
+                                        Color(0xFFE65100) else Color.Transparent,
+                                    label = "revoke-bg"
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(bgColor)
+                                        .padding(end = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Revoke", tint = Color.White)
+                                }
+                            }
+                        ) {
+                            PendingSentInviteItem(chat = chat)
+                        }
                     }
 
                     // Regular conversations — swipe-to-delete
@@ -391,6 +435,58 @@ fun PendingInviteItem(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Decline", fontSize = 13.sp)
             }
+        }
+    }
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 82.dp),
+        thickness = DividerDefaults.Thickness,
+        color = DividerDefaults.color
+    )
+}
+
+// ── Pending sent invite item ─────────────────────────────────────────────────
+
+@Composable
+private fun PendingSentInviteItem(chat: DBConversation) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        LetterAvatar(name = chat.otherUser, size = 50)
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = chat.otherUser,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Invitation sent — awaiting response",
+                fontSize = 13.sp,
+                fontStyle = FontStyle.Italic,
+                color = Color.Gray
+            )
+        }
+
+        // Amber "Pending" badge
+        Box(
+            modifier = Modifier
+                .background(Color(0xFFFFF8E1), shape = RoundedCornerShape(50))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = "Pending",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFFE65100)
+            )
         }
     }
     HorizontalDivider(

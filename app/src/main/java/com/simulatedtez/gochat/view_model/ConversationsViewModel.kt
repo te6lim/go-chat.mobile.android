@@ -131,7 +131,8 @@ class ConversationsViewModel(
     override fun onNewChatAdded(chat: NewChatResponse) {
         val newConversation = DBConversation(
             otherUser = chat.other,
-            chatReference = chat.chatReference
+            chatReference = chat.chatReference,
+            isPendingSentInvite = true
         )
         viewModelScope.launch(Dispatchers.IO) {
             _newConversation.send(newConversation)
@@ -194,10 +195,16 @@ class ConversationsViewModel(
     }
 
     override fun onInviteAccepted(chatReference: String) {
-        // Someone accepted OUR invite — refresh conversations
+        // Someone accepted OUR invite — clear pending state then refresh
         viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.clearPendingSentInvite(chatReference)
             _conversations.postValue(conversationsRepository.getConversations().toMutableList())
         }
+    }
+
+    override fun onInviteRevoked(chatReference: String) {
+        // The sender revoked their invite — remove from our received pending list
+        _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
     }
 
     override fun onInviteDeclined(chatReference: String) {

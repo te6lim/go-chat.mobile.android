@@ -4,12 +4,22 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE conversations ADD COLUMN isPendingSentInvite INTEGER NOT NULL DEFAULT 0"
+        )
+    }
+}
 
 @Database(
     entities = [DBMessage::class, DBConversation::class],
-    version = 1
+    version = 2
 )
-abstract class AppDatabase: RoomDatabase() {
+abstract class AppDatabase : RoomDatabase() {
     abstract fun messagesDao(): MessagesDao
     abstract fun conversationsDao(): ConversationDao
 
@@ -22,9 +32,10 @@ abstract class AppDatabase: RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "chat_database"
-                ).build().also {
-                    instance = it
-                }
+                )
+                    .addMigrations(MIGRATION_1_2)
+                    .build()
+                    .also { instance = it }
             }
         }
     }

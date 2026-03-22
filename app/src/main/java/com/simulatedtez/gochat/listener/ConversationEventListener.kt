@@ -12,4 +12,5 @@ interface ConversationEventListener: SocketConnection, MessageReceiver, MessageS
     fun onChatInviteReceived(message: Message)
     fun onInviteAccepted(chatReference: String)
     fun onInviteDeclined(chatReference: String)
+    fun onInviteRevoked(chatReference: String)
 }

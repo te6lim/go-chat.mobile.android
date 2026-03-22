@@ -9,5 +9,6 @@ data class Conversation(
     var lastMessage: String = "",
     var timestamp: String = "",
     var unreadCount: Int = 0,
-    val contactAvi: String =  "",
+    val contactAvi: String = "",
+    val isPendingSentInvite: Boolean = false,
 )
