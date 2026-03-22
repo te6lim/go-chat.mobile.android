@@ -245,6 +245,23 @@ class ChatRepository(
             return
         }
 
+        // Echoed-back message: our own message returned by the backend with updated
+        // receipt timestamps. Dispatch as a status update rather than a new incoming
+        // message to avoid duplicates in the UI.
+        if (message.sender == chatInfo.username) {
+            val status = when {
+                !message.seenTimestamp.isNullOrEmpty() -> MessageStatus.SEEN
+                !message.deliveredTimestamp.isNullOrEmpty() -> MessageStatus.DELIVERED
+                else -> null
+            }
+            status?.let {
+                context.launch(Dispatchers.Main) {
+                    chatEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
+                }
+            }
+            return
+        }
+
         context.launch(Dispatchers.IO) {
             chatDb.store(message)
         }
