@@ -164,7 +164,7 @@ class ConversationsViewModel(
         _isConnected.value = false
     }
 
-    override fun onError(error: ChatServiceErrorResponse) {
+    override fun onError(error: ChatServiceErrorResponse<*>) {
 
     }
 

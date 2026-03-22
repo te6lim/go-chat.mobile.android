@@ -15,7 +15,7 @@ interface SocketConnection {
     fun onClose(code: Int, reason: String)
     fun onConnect()
     fun onDisconnect(t: Throwable, response: Response?)
-    fun onError(error: ChatServiceErrorResponse)
+    fun onError(error: ChatServiceErrorResponse<*>)
 }
 
 interface MessageSender {

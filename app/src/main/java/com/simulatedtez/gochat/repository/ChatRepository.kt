@@ -186,7 +186,7 @@ class ChatRepository(
         }
     }
 
-    override fun onError(response: ChatServiceErrorResponse) {
+    override fun onError(response: ChatServiceErrorResponse<*>) {
         chatEventListener?.onError(response)
     }
 
