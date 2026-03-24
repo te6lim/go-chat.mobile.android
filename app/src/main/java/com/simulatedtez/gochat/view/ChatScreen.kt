@@ -23,9 +23,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -302,6 +304,7 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .statusBarsPadding()
                             .padding(horizontal = 4.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -798,8 +801,9 @@ fun MessageInputBar(
             )
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .imePadding(),
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .imePadding()
+                    .navigationBarsPadding(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Pill-shaped text input
