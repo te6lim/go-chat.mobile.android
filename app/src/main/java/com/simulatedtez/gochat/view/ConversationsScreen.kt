@@ -19,30 +19,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Badge
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
@@ -62,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,22 +81,21 @@ import com.simulatedtez.gochat.util.NetworkMonitor
 import com.simulatedtez.gochat.util.formatTimestamp
 import com.simulatedtez.gochat.view_model.ConversationsViewModel
 import com.simulatedtez.gochat.view_model.ConversationsViewModelProvider
-import io.ktor.websocket.Frame
 import kotlin.math.abs
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
-private val avatarPalette = listOf(
-    Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFF6A1B9A),
-    Color(0xFFC62828), Color(0xFF00695C), Color(0xFFE65100),
-    Color(0xFF37474F), Color(0xFFAD1457)
+val avatarPalette = listOf(
+    Color(0xFF2563EB), Color(0xFF059669), Color(0xFF7C3AED),
+    Color(0xFFDC2626), Color(0xFF0891B2), Color(0xFFD97706),
+    Color(0xFF4F46E5), Color(0xFFDB2777)
 )
 
-private fun avatarColorFor(name: String): Color =
+fun avatarColorFor(name: String): Color =
     avatarPalette[abs(name.hashCode()) % avatarPalette.size]
 
 @Composable
-private fun LetterAvatar(name: String, size: Int = 50) {
+private fun LetterAvatar(name: String, size: Int = 52) {
     Box(
         modifier = Modifier
             .size(size.dp)
@@ -109,8 +106,8 @@ private fun LetterAvatar(name: String, size: Int = 50) {
         Text(
             text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
             color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = (size * 0.4).sp
+            fontWeight = FontWeight.SemiBold,
+            fontSize = (size * 0.38).sp
         )
     }
 }
@@ -193,62 +190,74 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
         }
     }
 
-    // Navigate into chat immediately on accepting an invite
     LaunchedEffect(acceptedInviteChat) {
         acceptedInviteChat?.let { screenActions.onChatClicked(it) }
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Frame.Text("Chats") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        },
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showBottomSheet = true },
-                containerColor = MaterialTheme.colorScheme.secondary
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "New Chat", tint = Color.White)
+                Icon(Icons.Rounded.Add, contentDescription = "New Chat")
             }
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // Large title header
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)
+            ) {
+                Text(
+                    text = "Chats",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
             if (pendingInvites.isEmpty() && pendingSentInvites.isEmpty() && conversations.isEmpty()) {
                 // Empty state
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(32.dp),
+                        .padding(40.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "No chats yet",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
+                        text = "No conversations yet",
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Tap + to start a conversation",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        text = "Tap + to start a new chat",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-
-                    // Received invites — always at the top
+                    // Received invites
                     items(pendingInvites, key = { "invite_${it.chatReference}" }) { invite ->
                         PendingInviteItem(
                             invite = invite,
@@ -257,7 +266,7 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                         )
                     }
 
-                    // Sent invites awaiting response — swipe to revoke
+                    // Sent invites
                     items(pendingSentInvites, key = { "sent_${it.chatReference}" }) { chat ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
@@ -274,14 +283,14 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                             backgroundContent = {
                                 val bgColor by animateColorAsState(
                                     targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
-                                        Color(0xFFE65100) else Color.Transparent,
+                                        Color(0xFFD97706) else Color.Transparent,
                                     label = "revoke-bg"
                                 )
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .background(bgColor)
-                                        .padding(end = 20.dp),
+                                        .padding(end = 24.dp),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
                                     Icon(Icons.Default.Close, contentDescription = "Revoke", tint = Color.White)
@@ -292,7 +301,7 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                         }
                     }
 
-                    // Regular conversations — swipe-to-delete
+                    // Conversations
                     items(conversations, key = { it.chatReference }) { chat ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
@@ -309,14 +318,14 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
                             backgroundContent = {
                                 val bgColor by animateColorAsState(
                                     targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
-                                        Color(0xFFD32F2F) else Color.Transparent,
+                                        MaterialTheme.colorScheme.error else Color.Transparent,
                                     label = "swipe-bg"
                                 )
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .background(bgColor)
-                                        .padding(end = 20.dp),
+                                        .padding(end = 24.dp),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
@@ -334,7 +343,8 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     if (showBottomSheet) {
         ModalBottomSheet(
             onDismissRequest = { showBottomSheet = false },
-            sheetState = sheetState
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
             NewChatSheetContent(
                 !waiting,
@@ -356,41 +366,40 @@ fun PendingInviteItem(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             LetterAvatar(name = invite.sender)
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = invite.sender,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "wants to chat with you",
-                    fontSize = 13.sp,
-                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontStyle = FontStyle.Italic
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Accept — filled green pill
             Button(
                 onClick = onAccept,
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp),
-                shape = RoundedCornerShape(50),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2E7D32)
+                    containerColor = Color(0xFF059669)
                 )
             ) {
                 Icon(
@@ -400,36 +409,37 @@ fun PendingInviteItem(
                     tint = Color.White
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Accept", color = Color.White, fontSize = 13.sp)
+                Text("Accept", color = Color.White, style = MaterialTheme.typography.labelMedium)
             }
 
-            // Decline — outlined red pill
             OutlinedButton(
                 onClick = onDecline,
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp),
-                shape = RoundedCornerShape(50),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFFC62828)
+                    contentColor = MaterialTheme.colorScheme.error
                 ),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC62828))
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
             ) {
                 Icon(
                     Icons.Default.Close,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = Color(0xFFC62828)
+                    tint = MaterialTheme.colorScheme.error
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Decline", fontSize = 13.sp)
+                Text("Decline", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 82.dp),
-        thickness = DividerDefaults.Thickness,
-        color = DividerDefaults.color
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 86.dp)
+            .height(0.5.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant)
     )
 }
 
@@ -441,47 +451,49 @@ private fun PendingSentInviteItem(chat: DBConversation) {
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LetterAvatar(name = chat.otherUser, size = 50)
+        LetterAvatar(name = chat.otherUser)
 
         Spacer(modifier = Modifier.width(14.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = chat.otherUser,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Invitation sent — awaiting response",
-                fontSize = 13.sp,
+                text = "Invitation sent",
+                style = MaterialTheme.typography.bodySmall,
                 fontStyle = FontStyle.Italic,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        // Amber "Pending" badge
         Box(
             modifier = Modifier
-                .background(Color(0xFFFFF8E1), shape = RoundedCornerShape(50))
+                .background(
+                    MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = RoundedCornerShape(8.dp)
+                )
                 .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Text(
                 text = "Pending",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFFE65100)
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
             )
         }
     }
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 82.dp),
-        thickness = DividerDefaults.Thickness,
-        color = DividerDefaults.color
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 86.dp)
+            .height(0.5.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant)
     )
 }
 
@@ -508,59 +520,76 @@ fun ChatItem(
                     )
                 )
             }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         LetterAvatar(name = chat.otherUser)
 
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = chat.otherUser,
-                fontWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.SemiBold,
-                fontSize = 16.sp
+                style = if (isUnread)
+                    MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                else MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
             )
+            Spacer(modifier = Modifier.height(3.dp))
             if (isUserTyping?.first == chat.chatReference && isUserTyping.second) {
                 Text(
                     text = "typing...",
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontStyle = FontStyle.Italic,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold
                 )
             } else {
                 Text(
                     text = chat.lastMessage,
-                    color = if (isUnread) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isUnread) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = if (isUnread) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 1,
-                    fontSize = 14.sp
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = formatTimestamp(chat.timestamp),
-                color = if (isUnread) MaterialTheme.colorScheme.primary else Color.Gray,
-                fontSize = 12.sp,
-                fontWeight = if (isUnread) FontWeight.SemiBold else FontWeight.Normal
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isUnread) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (isUnread) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                    Text(text = chat.unreadCount.toString(), color = Color.White)
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = chat.unreadCount.toString(),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
         }
     }
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 82.dp),
-        thickness = DividerDefaults.Thickness,
-        color = DividerDefaults.color
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 86.dp)
+            .height(0.5.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant)
     )
 }
 
@@ -572,27 +601,46 @@ fun NewChatSheetContent(isEnabled: Boolean, onAddClick: (String) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(24.dp),
+            .padding(horizontal = 24.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Start a new chat", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "New conversation",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(20.dp))
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
             label = { Text("Enter username") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(18.dp))
         Button(
             onClick = { onAddClick(username) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = username.isNotBlank() && isEnabled
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            enabled = username.isNotBlank() && isEnabled,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
         ) {
-            Text("Add")
+            Text(
+                "Start Chat",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

@@ -1,7 +1,7 @@
 package com.simulatedtez.gochat.view
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -22,40 +22,39 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -74,13 +73,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -95,6 +94,11 @@ import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.enums.MessageStatus
 import com.simulatedtez.gochat.model.enums.PresenceStatus
 import com.simulatedtez.gochat.model.ui.UIMessage
+import com.simulatedtez.gochat.ui.theme.GoChatTheme
+import com.simulatedtez.gochat.ui.theme.ReceivedBubbleDark
+import com.simulatedtez.gochat.ui.theme.ReceivedBubbleLight
+import com.simulatedtez.gochat.ui.theme.SentBubbleDark
+import com.simulatedtez.gochat.ui.theme.SentBubbleLight
 import com.simulatedtez.gochat.util.INetworkMonitor
 import com.simulatedtez.gochat.util.NetworkMonitor
 import com.simulatedtez.gochat.util.formatDateLabel
@@ -103,6 +107,7 @@ import com.simulatedtez.gochat.view_model.ChatViewModel
 import com.simulatedtez.gochat.view_model.ChatViewModelProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.isSystemInDarkTheme
 
 // ── Chat list item types ──────────────────────────────────────────────────────
 
@@ -137,6 +142,7 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
     val app = LocalContext.current.applicationContext as GoChatApplication
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val isDark = isSystemInDarkTheme()
 
     val chatViewModelProvider = remember { ChatViewModelProvider(chatInfo = chatInfo, context) }
     val chatViewModel: ChatViewModel = viewModel(factory = chatViewModelProvider)
@@ -284,43 +290,83 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Column {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(chatInfo.recipientsUsernames[0], fontWeight = FontWeight.Bold)
+                // Top bar
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 0.dp,
+                    tonalElevation = 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { navigateUp() }) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Avatar
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(avatarColorFor(chatInfo.recipientsUsernames[0])),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = chatInfo.recipientsUsernames[0]
+                                    .firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = chatInfo.recipientsUsernames[0],
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                             presenceStatus?.let { status ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    PresenceIndicator(status = status)
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(presenceColor(status))
+                                    )
                                     Text(
                                         text = when (status) {
                                             PresenceStatus.ONLINE -> "Online"
                                             PresenceStatus.AWAY -> "Away"
                                             PresenceStatus.OFFLINE -> "Offline"
                                         },
-                                        fontSize = 12.sp,
-                                        color = when (status) {
-                                            PresenceStatus.ONLINE -> Color(0xFF4CAF50)
-                                            PresenceStatus.AWAY -> Color(0xFFFFC107)
-                                            PresenceStatus.OFFLINE -> Color.Gray
-                                        }
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = presenceColor(status)
                                     )
                                 }
                             }
                         }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { navigateUp() }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.primary
+                    }
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 0.5.dp
                     )
-                )
+                }
 
                 // Reconnect banner
                 AnimatedVisibility(
@@ -328,17 +374,24 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
                     enter = slideInVertically() + fadeIn(),
                     exit = slideOutVertically() + fadeOut()
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFFFC107))
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.error)
+                        )
                         Text(
                             text = "Reconnecting...",
-                            fontSize = 12.sp,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Medium
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
                 }
@@ -349,16 +402,24 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
                     enter = slideInVertically() + fadeIn(),
                     exit = slideOutVertically() + fadeOut()
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFFFF9C4))
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .background(MaterialTheme.colorScheme.tertiaryContainer)
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        Icon(
+                            Icons.Rounded.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
                         Text(
-                            text = "Waiting for ${chatInfo.recipientsUsernames[0]} to accept your invitation.",
-                            fontSize = 13.sp,
-                            color = Color(0xFF5D4037)
+                            text = "Waiting for ${chatInfo.recipientsUsernames[0]} to accept your invitation",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
                 }
@@ -396,19 +457,20 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
         ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 12.dp),
                 reverseLayout = true
             ) {
                 if (isUserTyping == true) {
                     item {
                         TypingIndicatorBubble()
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
                 }
 
@@ -426,13 +488,14 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
                             MessageBubble(
                                 message = item.uiMessage,
                                 isLastInGroup = item.isLastInGroup,
+                                isDark = isDark,
                                 onLongClick = { selectedMessage = item.uiMessage }
                             )
-                            Spacer(modifier = Modifier.height(if (item.isLastInGroup) 8.dp else 2.dp))
+                            Spacer(modifier = Modifier.height(if (item.isLastInGroup) 6.dp else 2.dp))
                         }
                         is ChatListItem.DateSeparatorItem -> {
                             DateSeparatorChip(label = item.label)
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                         }
                     }
                 }
@@ -450,13 +513,14 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
                 FloatingActionButton(
                     onClick = { scope.launch { listState.animateScrollToItem(0) } },
                     modifier = Modifier.size(40.dp),
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    shape = CircleShape
                 ) {
                     Icon(
-                        Icons.Default.ArrowDownward,
+                        Icons.Rounded.ArrowDownward,
                         contentDescription = "Scroll to bottom",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -467,7 +531,8 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
     selectedMessage?.let { msg ->
         ModalBottomSheet(
             onDismissRequest = { selectedMessage = null },
-            sheetState = sheetState
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
             MessageOptionsSheet(
                 message = msg,
@@ -485,6 +550,14 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
     }
 }
 
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+private fun presenceColor(status: PresenceStatus): Color = when (status) {
+    PresenceStatus.ONLINE -> Color(0xFF22C55E)
+    PresenceStatus.AWAY -> Color(0xFFF59E0B)
+    PresenceStatus.OFFLINE -> Color(0xFF94A3B8)
+}
+
 // ── Composables ───────────────────────────────────────────────────────────────
 
 @Composable
@@ -492,13 +565,13 @@ fun DateSeparatorChip(label: String) {
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = Color.Gray,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .padding(horizontal = 12.dp, vertical = 5.dp)
         )
     }
 }
@@ -509,29 +582,57 @@ fun MessageOptionsSheet(
     onCopy: () -> Unit,
     onDelete: (() -> Unit)?
 ) {
-    Column(modifier = Modifier.padding(bottom = 24.dp)) {
+    Column(modifier = Modifier.padding(bottom = 28.dp)) {
+        Text(
+            text = message.message.message.take(60).let {
+                if (message.message.message.length > 60) "$it…" else it
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            maxLines = 2
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         TextButton(
             onClick = onCopy,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
         ) {
-            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("Copy", modifier = Modifier.weight(1f))
+            Icon(
+                Icons.Rounded.ContentCopy,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Text(
+                "Copy message",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
         }
         if (onDelete != null) {
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             TextButton(
                 onClick = onDelete,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
             ) {
                 Icon(
-                    Icons.Default.Delete,
+                    Icons.Rounded.Delete,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.error
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Delete", color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.width(14.dp))
+                Text(
+                    "Delete message",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -542,49 +643,67 @@ fun MessageOptionsSheet(
 fun MessageBubble(
     message: UIMessage,
     isLastInGroup: Boolean,
+    isDark: Boolean,
     onLongClick: () -> Unit = {}
 ) {
     val isSender = message.message.sender == session.username
 
-    val bubbleColor = if (isSender) MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.inversePrimary
+    val bubbleColor = when {
+        isSender && isDark -> SentBubbleDark
+        isSender -> SentBubbleLight
+        isDark -> ReceivedBubbleDark
+        else -> ReceivedBubbleLight
+    }
 
-    val textColor = if (isSender) Color.White else Color.Black
+    val textColor = when {
+        isSender -> Color.White
+        isDark -> Color(0xFFE2E8F0)
+        else -> Color(0xFF0F172A)
+    }
+
     val alignment = if (isSender) Alignment.End else Alignment.Start
 
+    // Tail corner: flat on the "tail" side for last in group
     val shape = RoundedCornerShape(
-        topStart = 16.dp,
-        topEnd = 16.dp,
-        bottomStart = if (!isSender && isLastInGroup) 0.dp else 16.dp,
-        bottomEnd = if (isSender && isLastInGroup) 0.dp else 16.dp
+        topStart = 18.dp,
+        topEnd = 18.dp,
+        bottomStart = if (!isSender && isLastInGroup) 4.dp else 18.dp,
+        bottomEnd = if (isSender && isLastInGroup) 4.dp else 18.dp
     )
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = alignment
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = alignment
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(shape)
+                .background(bubbleColor)
+                .combinedClickable(onLongClick = onLongClick, onClick = {})
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .widthIn(max = 280.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .clip(shape)
-                    .background(bubbleColor)
-                    .combinedClickable(onLongClick = onLongClick, onClick = {})
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            Text(
+                text = message.message.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = textColor,
+                lineHeight = 22.sp
+            )
+        }
+        if (isLastInGroup) {
+            Spacer(modifier = Modifier.height(3.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.padding(horizontal = 2.dp)
             ) {
-                Text(text = message.message.message, color = textColor)
-            }
-            if (isLastInGroup) {
-                Spacer(modifier = Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = formatTimestamp(message.message.timestamp),
-                        fontSize = 11.sp,
-                        color = Color.Gray
-                    )
-                    if (isSender) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        MessageStatusIndicator(status = message.status)
-                    }
+                Text(
+                    text = formatTimestamp(message.message.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isSender) {
+                    MessageStatusIndicator(status = message.status)
                 }
             }
         }
@@ -593,79 +712,69 @@ fun MessageBubble(
 
 @Composable
 fun MessageStatusIndicator(status: MessageStatus) {
-    val (icon, color) = when (status) {
-        MessageStatus.SENDING -> Icons.Default.Schedule to Color.Gray
-        MessageStatus.SENT -> Icons.Default.Check to Color.Gray
-        MessageStatus.DELIVERED -> Icons.Default.DoneAll to Color.Gray
-        MessageStatus.SEEN -> Icons.Default.DoneAll to Color(0xFF2196F3)
-        else -> Icons.Default.Error to MaterialTheme.colorScheme.error
+    val (icon, tint) = when (status) {
+        MessageStatus.SENDING -> Icons.Rounded.Schedule to MaterialTheme.colorScheme.onSurfaceVariant
+        MessageStatus.SENT -> Icons.Rounded.Check to MaterialTheme.colorScheme.onSurfaceVariant
+        MessageStatus.DELIVERED -> Icons.Rounded.DoneAll to MaterialTheme.colorScheme.onSurfaceVariant
+        MessageStatus.SEEN -> Icons.Rounded.DoneAll to MaterialTheme.colorScheme.primary
+        else -> Icons.Rounded.ErrorOutline to MaterialTheme.colorScheme.error
     }
     Icon(
         imageVector = icon,
         contentDescription = null,
-        tint = color,
-        modifier = Modifier.size(14.dp)
+        tint = tint,
+        modifier = Modifier.size(13.dp)
     )
 }
 
 @Composable
 fun TypingIndicatorBubble() {
     val infiniteTransition = rememberInfiniteTransition(label = "typing")
-    val dotBounceOffsetY by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -20f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ), label = "dot-bounce"
-    )
+
     Box(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 16.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TypingDot(delay = 0.dp, bounce = dotBounceOffsetY)
-                TypingDot(delay = 160.dp, bounce = dotBounceOffsetY)
-                TypingDot(delay = 320.dp, bounce = dotBounceOffsetY)
+                repeat(3) { index ->
+                    val alpha by infiniteTransition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(
+                                durationMillis = 600,
+                                delayMillis = index * 150,
+                                easing = EaseInOutSine
+                            ),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "dot-$index"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun TypingDot(delay: Dp, bounce: Float) {
-    var yOffset by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(bounce) {
-        delay(delay.value.toLong())
-        yOffset = bounce
-    }
-    Box(
-        modifier = Modifier
-            .size(8.dp)
-            .offset(y = yOffset.dp)
-            .clip(CircleShape)
-            .background(Color.Gray.copy(alpha = 0.7f))
-    )
-}
-
-@Composable
 fun PresenceIndicator(status: PresenceStatus?) {
-    val color = when (status) {
-        PresenceStatus.ONLINE -> Color(0xFF4CAF50)
-        PresenceStatus.AWAY -> Color(0xFFFFC107)
-        else -> Color.Gray
-    }
     Box(
         modifier = Modifier
             .size(10.dp)
             .clip(CircleShape)
-            .background(color)
+            .background(if (status != null) presenceColor(status) else Color(0xFF94A3B8))
     )
 }
 
@@ -675,31 +784,77 @@ fun MessageInputBar(
     onMessageChange: (String) -> Unit,
     onSendClick: () -> Unit
 ) {
+    val hasText = message.isNotBlank()
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shadowElevation = 8.dp
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = message,
-                onValueChange = onMessageChange,
-                placeholder = { Text("Type a message...") },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(24.dp)
+        Column {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = 0.5.dp
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
-                onClick = onSendClick,
-                enabled = message.isNotBlank(),
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = Color.Gray
-                )
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .imePadding(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Send, contentDescription = "Send", tint = Color.White)
+                // Pill-shaped text input
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (message.isEmpty()) {
+                        Text(
+                            text = "Message",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    BasicTextField(
+                        value = message,
+                        onValueChange = onMessageChange,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 5
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Send button
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (hasText) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .combinedClickable(
+                            enabled = hasText,
+                            onClick = onSendClick
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.Send,
+                        contentDescription = "Send",
+                        tint = if (hasText) MaterialTheme.colorScheme.onPrimary
+                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -708,11 +863,13 @@ fun MessageInputBar(
 @Preview(showBackground = true)
 @Composable
 fun ChatScreenPreview() {
-    rememberNavController().ChatScreen(
-        chatInfo = ChatInfo(
-            username = session.username,
-            recipientsUsernames = listOf("Jane Doe"),
-            chatReference = ""
+    GoChatTheme {
+        rememberNavController().ChatScreen(
+            chatInfo = ChatInfo(
+                username = "me",
+                recipientsUsernames = listOf("Jane Doe"),
+                chatReference = ""
+            )
         )
-    )
+    }
 }
