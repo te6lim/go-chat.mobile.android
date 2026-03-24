@@ -77,7 +77,6 @@ import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.Message
-import com.simulatedtez.gochat.model.enums.AuthScreens
 import com.simulatedtez.gochat.ui.theme.GoChatTheme
 import com.simulatedtez.gochat.util.INetworkMonitor
 import com.simulatedtez.gochat.util.NetworkMonitor
@@ -135,7 +134,6 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
     val conversationHistory by viewModel.conversations.observeAsState(listOf())
     val errorMessage by viewModel.errorMessage.observeAsState()
     val isUserTyping by viewModel.isUserTyping.observeAsState()
-    val tokenExpired by viewModel.tokenExpired.observeAsState()
     val pendingInvites by viewModel.pendingInvites.observeAsState(emptyList())
     val acceptedInviteChat by viewModel.acceptedInviteChat.collectAsState(null)
 
@@ -159,15 +157,6 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    LaunchedEffect(tokenExpired) {
-        tokenExpired?.let {
-            if (it) {
-                navigate(AuthScreens.LOGIN.name)
-                viewModel.resetTokenExpired()
-            }
-        }
     }
 
     LaunchedEffect(errorMessage) {

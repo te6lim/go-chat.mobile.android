@@ -92,7 +92,6 @@ import androidx.navigation.compose.rememberNavController
 import com.simulatedtez.gochat.GoChatApplication
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.model.ChatInfo
-import com.simulatedtez.gochat.model.enums.AuthScreens
 import com.simulatedtez.gochat.model.enums.MessageStatus
 import com.simulatedtez.gochat.model.enums.PresenceStatus
 import com.simulatedtez.gochat.model.ui.UIMessage
@@ -152,7 +151,6 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
     val pagedMessages by chatViewModel.pagedMessages.observeAsState()
     val sentMessage by chatViewModel.sendMessageAttempt.observeAsState()
     val isConnected by chatViewModel.isConnected.observeAsState()
-    val tokenExpired by chatViewModel.tokenExpired.observeAsState()
     val messagesSent by chatViewModel.messagesSent.observeAsState(null)
     val presenceStatus by chatViewModel.recipientStatus.observeAsState()
     val typingTimeLeft by chatViewModel.typingTimeLeft.observeAsState()
@@ -237,15 +235,6 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
     LaunchedEffect(hasFinishedInitialMessagesLoad) {
         if (hasFinishedInitialMessagesLoad && !chatViewModel.isChatServiceConnected()) {
             chatViewModel.connectAndSendPendingMessages()
-        }
-    }
-
-    LaunchedEffect(tokenExpired) {
-        tokenExpired?.let {
-            if (it) {
-                navigate(AuthScreens.LOGIN.name)
-                chatViewModel.resetTokenExpired()
-            }
         }
     }
 

@@ -44,6 +44,7 @@ class LoginRepository(
                                         }
                                         session.saveAccessToken(it.accessToken)
                                         session.saveUsername(username)
+                                        session.savePassword(password)
 
                                         scope.launch(Dispatchers.Main) {
                                             loginEventListener?.onLogin(it)

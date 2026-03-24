@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.simulatedtez.gochat.model.enums.ChatScreens
 import com.simulatedtez.gochat.view_model.SignupViewModel
 import com.simulatedtez.gochat.view_model.SignupViewModelProvider
 import com.simulatedtez.gochat.ui.theme.GoChatTheme
@@ -46,13 +47,26 @@ import com.simulatedtez.gochat.ui.theme.GoChatTheme
 fun NavController.SignupScreen() {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    //var confirmPassword by remember { mutableStateOf("") }
 
-    val viewModelProvider = remember { SignupViewModelProvider() }
+    val viewModelProvider = remember { SignupViewModelProvider(context) }
     val viewModel: SignupViewModel = viewModel(factory = viewModelProvider)
 
     val isSignupSuccessful by viewModel.isSignupSuccessful.observeAsState()
+    val isAutoLoginSuccessful by viewModel.isAutoLoginSuccessful.observeAsState()
 
+    // Auto-login succeeded: go straight to conversations
+    LaunchedEffect(isAutoLoginSuccessful) {
+        isAutoLoginSuccessful?.let {
+            if (it) {
+                viewModel.initializeAppWideChatService(context)
+                navigate(ChatScreens.CONVERSATIONS.name) {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
+        }
+    }
+
+    // Signup succeeded but auto-login failed: go back to login screen
     LaunchedEffect(isSignupSuccessful) {
         isSignupSuccessful?.let {
             if (it) {
@@ -81,7 +95,7 @@ fun NavController.SignupScreen() {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Let’s get you started!",
+                text = "Let's get you started!",
                 fontSize = 16.sp,
                 color = Color.Gray,
                 textAlign = TextAlign.Center

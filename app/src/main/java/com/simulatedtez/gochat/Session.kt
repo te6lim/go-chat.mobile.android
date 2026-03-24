@@ -72,4 +72,12 @@ open class Session private constructor() {
         UserPreference.storeUsername(username)
         this.username = username
     }
+
+    fun savePassword(password: String) {
+        UserPreference.storePassword(password)
+    }
+
+    fun getPassword(): String? {
+        return UserPreference.getPassword()
+    }
 }

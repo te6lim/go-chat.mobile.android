@@ -86,6 +86,22 @@ object UserPreference {
         }
     }
 
+    fun storePassword(value: String) {
+        preferences.edit {
+            putString(PASSWORD_PREF, value)
+        }
+    }
+
+    fun getPassword(): String? {
+        return preferences.getString(PASSWORD_PREF, null)
+    }
+
+    fun deletePassword() {
+        preferences.edit {
+            remove(PASSWORD_PREF)
+        }
+    }
+
     fun storeChatHistoryStatus(chatRef: String, isNew: Boolean) {
         preferences.edit {
             putBoolean(chatRef, isNew)
@@ -102,4 +118,5 @@ const val PRESENCE_SHARING_TOGGLE = "presence-sharing-toggle"
 const val READ_RECEIPT_TOGGLE = "read-receipt-toggle"
 const val ACCESS_TOKEN_PREF = "access-token-pref"
 const val USERNAME_PREF = "username-pref"
+const val PASSWORD_PREF = "password-pref"
 const val CUTOFF_DATE_FOR_MARKING_MESSAGES_AS_SEEN = "cut-off date for marking messages as seen"

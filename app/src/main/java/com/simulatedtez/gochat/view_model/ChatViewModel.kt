@@ -23,7 +23,6 @@ import com.simulatedtez.gochat.model.toUIMessage
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.remote.client
 import io.github.aakira.napier.Napier
-import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -69,9 +68,6 @@ class ChatViewModel(
     private val _sendMessageAttempt = MutableLiveData<UIMessage?>()
     val sendMessageAttempt: LiveData<UIMessage?> = _sendMessageAttempt
 
-    private val _tokenExpired = MutableLiveData<Boolean>()
-    val tokenExpired: LiveData<Boolean> = _tokenExpired
-
     private val _recipientStatus = MutableLiveData<PresenceStatus>()
     val recipientStatus: LiveData<PresenceStatus> = _recipientStatus
 
@@ -100,10 +96,6 @@ class ChatViewModel(
 
     fun resetSendAttempt() {
         _sendMessageAttempt.value = null
-    }
-
-    fun resetTokenExpired() {
-        _tokenExpired.value = false
     }
 
     fun loadMessages() {
@@ -176,9 +168,6 @@ class ChatViewModel(
 
     override fun onError(error: ChatServiceErrorResponse<Message>) {
         Napier.d(error.reason)
-        if (error.statusCode == HttpStatusCode.Unauthorized.value) {
-            _tokenExpired.value = true
-        }
     }
 
     override fun onReceiveRecipientActivityStatusMessage(presenceStatus: PresenceStatus) {

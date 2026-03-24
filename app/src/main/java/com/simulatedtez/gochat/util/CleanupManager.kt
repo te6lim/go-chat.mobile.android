@@ -30,6 +30,7 @@ class CleanupManager(
         conversationDatabase.deleteAllConversations()
         UserPreference.deleteUsername()
         UserPreference.deleteAccessToken()
+        UserPreference.deletePassword()
         Session.clear()
     }
 }
