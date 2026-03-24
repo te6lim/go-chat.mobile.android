@@ -64,10 +64,9 @@ class ChatRepository(
             pendingMessages.addAll(
                 chatDb.getPendingMessages(chatInfo.chatReference).toMessages()
             )
-            context.launch(Dispatchers.Main) {
-                createNewChatRoom {
-                    chatService.connectAndSend(pendingMessages)
-                }
+            chatService.resetReconnectionDelay()
+            createNewChatRoom {
+                chatService.connectAndSend(pendingMessages)
             }
         }
     }

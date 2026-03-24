@@ -52,6 +52,7 @@ open class AppWideChatEventListener(
 
     open suspend fun connectToChatService() {
         if (session.appWideChatService?.socketIsConnected == false) {
+            session.appWideChatService?.resetReconnectionDelay()
             createNewConversations {
                 session.appWideChatService?.connect()
             }
