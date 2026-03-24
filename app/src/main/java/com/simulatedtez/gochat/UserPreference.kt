@@ -3,15 +3,27 @@ package com.simulatedtez.gochat
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import com.simulatedtez.gochat.util.toISOString
 import java.time.LocalDateTime
 
 object UserPreference {
     private const val NAME = "user_pref"
+    private const val SECURE_NAME = "secure_user_pref"
     private lateinit var preferences: SharedPreferences
+    private lateinit var securePreferences: SharedPreferences
 
     fun init(context: Context) {
         preferences = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        securePreferences = EncryptedSharedPreferences.create(
+            SECURE_NAME,
+            masterKeyAlias,
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
 
     fun isBackupEnabled(): Boolean {
@@ -71,33 +83,42 @@ object UserPreference {
     }
 
     fun storeAccessToken(value: String) {
-        preferences.edit {
+        securePreferences.edit {
             putString(ACCESS_TOKEN_PREF, value)
         }
     }
 
     fun getAccessToken(): String? {
-        return preferences.getString(ACCESS_TOKEN_PREF, null)
+        // Check secure prefs first, fall back to plain prefs for migration
+        return securePreferences.getString(ACCESS_TOKEN_PREF, null)
+            ?: preferences.getString(ACCESS_TOKEN_PREF, null)?.also { token ->
+                // Migrate from plain to encrypted
+                securePreferences.edit { putString(ACCESS_TOKEN_PREF, token) }
+                preferences.edit { remove(ACCESS_TOKEN_PREF) }
+            }
     }
 
     fun deleteAccessToken() {
+        securePreferences.edit {
+            remove(ACCESS_TOKEN_PREF)
+        }
         preferences.edit {
             remove(ACCESS_TOKEN_PREF)
         }
     }
 
     fun storePassword(value: String) {
-        preferences.edit {
+        securePreferences.edit {
             putString(PASSWORD_PREF, value)
         }
     }
 
     fun getPassword(): String? {
-        return preferences.getString(PASSWORD_PREF, null)
+        return securePreferences.getString(PASSWORD_PREF, null)
     }
 
     fun deletePassword() {
-        preferences.edit {
+        securePreferences.edit {
             remove(PASSWORD_PREF)
         }
     }

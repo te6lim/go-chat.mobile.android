@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx.v270)
     ksp(libs.androidx.room.compiler)
 
+    implementation(libs.androidx.security.crypto)
     implementation(libs.napier.android)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
