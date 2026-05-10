@@ -49,6 +49,14 @@ class ConversationDatabase private constructor(private val conversationsDao: Con
     suspend fun insertConversations(convos: List<DBConversation>) {
         conversationsDao.insert(convos)
     }
+
+    suspend fun deleteConversation(chatRef: String) {
+        conversationsDao.deleteByChatReference(chatRef)
+    }
+
+    suspend fun markAsPendingSentInvite(chatRef: String, isPending: Boolean) {
+        conversationsDao.updatePendingSentInvite(chatRef, isPending)
+    }
 }
 
 @Entity(tableName = "conversations")
@@ -65,7 +73,13 @@ data class DBConversation(
     @ColumnInfo("unreadCount")
     var unreadCount: Int = 0,
     @ColumnInfo("contactAvi")
-    val contactAvi: String =  "",
+    val contactAvi: String = "",
+    @ColumnInfo("isPendingSentInvite")
+    val isPendingSentInvite: Boolean = false,
+    @ColumnInfo("chatType")
+    val chatType: String = "private",
+    @ColumnInfo("chatName")
+    val chatName: String = "",
 )
 
 @Dao
@@ -78,6 +92,9 @@ interface ConversationDao {
 
     @Query("UPDATE conversations SET unreadCount = 0 WHERE chatReference =:chatRef")
     suspend fun updateUnreadCountToZero(chatRef: String)
+
+    @Query("UPDATE conversations SET isPendingSentInvite = :isPending WHERE chatReference = :chatRef")
+    suspend fun updatePendingSentInvite(chatRef: String, isPending: Boolean)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(conv: DBConversation)
@@ -102,7 +119,10 @@ fun DBConversation.toConversation(): Conversation {
         lastMessage = lastMessage,
         timestamp = timestamp,
         unreadCount = unreadCount,
-        contactAvi = contactAvi
+        contactAvi = contactAvi,
+        isPendingSentInvite = isPendingSentInvite,
+        chatType = chatType,
+        chatName = chatName
     )
 }
 

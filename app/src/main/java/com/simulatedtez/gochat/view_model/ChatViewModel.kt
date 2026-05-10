@@ -23,7 +23,6 @@ import com.simulatedtez.gochat.model.toUIMessage
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.remote.client
 import io.github.aakira.napier.Napier
-import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -69,11 +68,14 @@ class ChatViewModel(
     private val _sendMessageAttempt = MutableLiveData<UIMessage?>()
     val sendMessageAttempt: LiveData<UIMessage?> = _sendMessageAttempt
 
-    private val _tokenExpired = MutableLiveData<Boolean>()
-    val tokenExpired: LiveData<Boolean> = _tokenExpired
-
     private val _recipientStatus = MutableLiveData<PresenceStatus>()
     val recipientStatus: LiveData<PresenceStatus> = _recipientStatus
+
+    private val _isInvitePending = MutableLiveData(false)
+    val isInvitePending: LiveData<Boolean> = _isInvitePending
+
+    private val _recipientMessageStatus = MutableLiveData<MessageStatus?>()
+    val recipientMessageStatus: LiveData<MessageStatus?> = _recipientMessageStatus
 
     private val sentMessagesQueue: Queue<Message> = LinkedList()
     private val receivedMessagesQueue: Queue<Message> = LinkedList()
@@ -94,10 +96,6 @@ class ChatViewModel(
 
     fun resetSendAttempt() {
         _sendMessageAttempt.value = null
-    }
-
-    fun resetTokenExpired() {
-        _tokenExpired.value = false
     }
 
     fun loadMessages() {
@@ -142,6 +140,10 @@ class ChatViewModel(
         chatRepo.connectAndSendPendingMessages()
     }
 
+    fun deleteMessage(message: com.simulatedtez.gochat.model.Message) {
+        chatRepo.sendMessageForBackupOrDeletion(message)
+    }
+
     fun exitChat() {
         chatRepo.killChatService()
     }
@@ -164,11 +166,8 @@ class ChatViewModel(
         _isConnected.value = false
     }
 
-    override fun onError(error: ChatServiceErrorResponse) {
+    override fun onError(error: ChatServiceErrorResponse<Message>) {
         Napier.d(error.reason)
-        if (error.statusCode == HttpStatusCode.Unauthorized.value) {
-            _tokenExpired.value = true
-        }
     }
 
     override fun onReceiveRecipientActivityStatusMessage(presenceStatus: PresenceStatus) {
@@ -177,11 +176,22 @@ class ChatViewModel(
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
         when (messageStatus) {
-            MessageStatus.TYPING -> {
-                _isUserTyping.value = true
+            MessageStatus.TYPING -> _isUserTyping.value = true
+            MessageStatus.INVITE_PENDING -> _isInvitePending.value = true
+            MessageStatus.DELIVERED -> {
+                _isUserTyping.value = false
+                _recipientMessageStatus.value = MessageStatus.DELIVERED
+            }
+            MessageStatus.SEEN -> {
+                _isUserTyping.value = false
+                _recipientMessageStatus.value = MessageStatus.SEEN
             }
             else -> _isUserTyping.value = false
         }
+    }
+
+    fun resetRecipientMessageStatus() {
+        _recipientMessageStatus.value = null
     }
 
     fun popSentMessagesQueue() {

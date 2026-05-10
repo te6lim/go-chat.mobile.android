@@ -42,8 +42,9 @@ class LoginRepository(
                                         if (session.username != username) {
                                             cleanupManager.clearUserData()
                                         }
-                                        session.saveAccessToken(it.accessToken)
+                                        session.saveTokenDetails(it.accessToken, it.expiryTime)
                                         session.saveUsername(username)
+                                        session.savePassword(password)
 
                                         scope.launch(Dispatchers.Main) {
                                             loginEventListener?.onLogin(it)

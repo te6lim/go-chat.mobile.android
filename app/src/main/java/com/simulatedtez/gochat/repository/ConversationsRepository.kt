@@ -10,9 +10,13 @@ import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.listener.ConversationEventListener
+import com.simulatedtez.gochat.model.response.GroupChatResponse
+import com.simulatedtez.gochat.remote.api_interfaces.IChatApiService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsParams
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
+import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatParams
+import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.StartNewChatParams
 import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.remote.IResponse
@@ -20,17 +24,22 @@ import com.simulatedtez.gochat.remote.IResponseHandler
 import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.Response
 import com.simulatedtez.gochat.util.AppWideChatEventListener
+import com.simulatedtez.gochat.util.toISOString
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+import java.util.UUID
 
 class ConversationsRepository(
     private val addNewChatUsecase: AddNewChatUsecase,
     createConversationsUsecase: CreateConversationsUsecase,
+    private val chatApiService: IChatApiService,
     private val conversationDB: ConversationDatabase,
     chatDb: IChatStorage,
+    private val createGroupChatUsecase: CreateGroupChatUsecase,
 ): AppWideChatEventListener(createConversationsUsecase, chatDb) {
 
     override val context = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -42,7 +51,26 @@ class ConversationsRepository(
     }
 
     suspend fun getConversations(): List<DBConversation> {
-        return conversationDB.getConversations()
+        val local = conversationDB.getConversations()
+        if (local.isNotEmpty()) return local
+
+        // Fresh install — seed from backend.
+        val response = chatApiService.fetchUserConversations(Session.session.username)
+        if (response is IResponse.Success) {
+            val summaries = response.data?.data ?: return emptyList()
+            val seeded = summaries.map { s ->
+                val isGroup = s.chatType == "group"
+                DBConversation(
+                    chatReference = s.chatReference,
+                    otherUser = if (isGroup) "" else s.otherUsername,
+                    chatType = s.chatType,
+                    chatName = if (isGroup) s.otherUsername else ""
+                )
+            }
+            conversationDB.insertConversations(seeded)
+            return seeded
+        }
+        return emptyList()
     }
 
     override suspend fun createNewConversations(onSuccess: (() -> Unit)) {
@@ -87,7 +115,9 @@ class ConversationsRepository(
                 chatReference = convo.chatReference,
                 lastMessage = newMessage.message,
                 timestamp = newMessage.timestamp,
-                unreadCount = convo.unreadCount + 1
+                unreadCount = convo.unreadCount + 1,
+                chatType = convo.chatType,
+                chatName = convo.chatName
             )
             temporaryConversationList.remove(convo)
             temporaryConversationList.add(conversation)
@@ -119,7 +149,8 @@ class ConversationsRepository(
                                        lastMessage = "",
                                        timestamp = "",
                                        unreadCount = messageCount,
-                                       contactAvi = ""
+                                       contactAvi = "",
+                                       isPendingSentInvite = true
                                    )
                                )
                            }
@@ -156,7 +187,7 @@ class ConversationsRepository(
         conversationEventListener?.onDisconnect(t, response)
     }
 
-    override fun onError(response: ChatServiceErrorResponse) {
+    override fun onError(response: ChatServiceErrorResponse<Message>) {
         conversationEventListener?.onError(response)
     }
 
@@ -175,7 +206,52 @@ class ConversationsRepository(
         }
 
         MessageStatus.getType(message.messageStatus)?.let {
-            conversationEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
+            when (it) {
+                MessageStatus.CHAT_INVITE -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onChatInviteReceived(message)
+                    }
+                }
+                MessageStatus.INVITE_ACCEPTED -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onInviteAccepted(message.chatReference)
+                    }
+                }
+                MessageStatus.INVITE_DECLINED -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onInviteDeclined(message.chatReference)
+                    }
+                }
+                MessageStatus.INVITE_REVOKED -> {
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onInviteRevoked(message.chatReference)
+                    }
+                }
+                MessageStatus.GROUP_INVITE -> {
+                    context.launch(Dispatchers.IO) {
+                        conversationDB.insertConversation(
+                            DBConversation(
+                                chatReference = message.chatReference,
+                                otherUser = "",
+                                chatType = "group",
+                                chatName = "Group Chat"
+                            )
+                        )
+                    }
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onGroupInviteReceived(message)
+                    }
+                }
+                MessageStatus.GROUP_REMOVED -> {
+                    context.launch(Dispatchers.IO) {
+                        conversationDB.deleteConversation(message.chatReference)
+                    }
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onGroupRemoved(message.chatReference)
+                    }
+                }
+                else -> conversationEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
+            }
             return
         }
 
@@ -191,6 +267,41 @@ class ConversationsRepository(
         }
     }
 
+    suspend fun deleteConversation(chatReference: String) {
+        chatApiService.deleteConversation(chatReference)
+        conversationDB.deleteConversation(chatReference)
+    }
+
+    suspend fun clearPendingSentInvite(chatReference: String) {
+        conversationDB.markAsPendingSentInvite(chatReference, false)
+    }
+
+    fun acceptInvite(chatReference: String) {
+        val message = Message(
+            id = UUID.randomUUID().toString(),
+            message = "",
+            sender = Session.session.username,
+            receiver = "",
+            timestamp = LocalDateTime.now().toISOString(),
+            chatReference = chatReference,
+            messageStatus = MessageStatus.ACCEPT_INVITE.name
+        )
+        Session.session.appWideChatService?.sendMessage(message)
+    }
+
+    fun declineInvite(chatReference: String) {
+        val message = Message(
+            id = UUID.randomUUID().toString(),
+            message = "",
+            sender = Session.session.username,
+            receiver = "",
+            timestamp = LocalDateTime.now().toISOString(),
+            chatReference = chatReference,
+            messageStatus = MessageStatus.DECLINE_INVITE.name
+        )
+        Session.session.appWideChatService?.sendMessage(message)
+    }
+
     suspend fun addNewConversation(other: String, messageCount: Int) {
         addNewChat(Session.session.username, other, messageCount) { isAdded ->
             if (isAdded) {
@@ -199,5 +310,48 @@ class ConversationsRepository(
                 }
             }
         }
+    }
+
+    suspend fun createGroupChat(
+        name: String,
+        participants: List<String>,
+        onSuccess: (GroupChatResponse) -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        val params = CreateGroupChatParams(
+            request = CreateGroupChatParams.Request(name = name, participants = participants)
+        )
+        createGroupChatUsecase.call(
+            params,
+            object : IResponseHandler<ParentResponse<GroupChatResponse>, IResponse<ParentResponse<GroupChatResponse>>> {
+                override fun onResponse(response: IResponse<ParentResponse<GroupChatResponse>>) {
+                    when (response) {
+                        is IResponse.Success -> {
+                            response.data.data?.let { groupChat ->
+                                context.launch(Dispatchers.IO) {
+                                    storeConversation(
+                                        DBConversation(
+                                            chatReference = groupChat.chatReference,
+                                            otherUser = "",
+                                            chatType = "group",
+                                            chatName = groupChat.name
+                                        )
+                                    )
+                                    context.launch(Dispatchers.Main) {
+                                        onSuccess(groupChat)
+                                    }
+                                }
+                            }
+                        }
+                        is IResponse.Failure -> {
+                            context.launch(Dispatchers.Main) {
+                                onFailure(response.response?.message ?: "Failed to create group")
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+            }
+        )
     }
 }

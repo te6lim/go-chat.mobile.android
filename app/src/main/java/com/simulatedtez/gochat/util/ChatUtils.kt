@@ -14,8 +14,7 @@ fun newPrivateChat(
 ): ChatEngine<Message> {
     return ChatEngine.Builder<Message>()
         .setSocketURL(
-            "${BuildConfig.WEBSOCKET_BASE_URL}/room/${chatInfo.chatReference}" +
-                    "?me=${chatInfo.username}&other=${chatInfo.recipientsUsernames[0]}"
+            "${BuildConfig.WEBSOCKET_BASE_URL}/room/${chatInfo.chatReference}?me=${chatInfo.username}"
         )
         .setUsername(chatInfo.username)
         .setExpectedReceivers(chatInfo.recipientsUsernames)

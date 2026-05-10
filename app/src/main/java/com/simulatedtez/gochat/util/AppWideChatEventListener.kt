@@ -35,14 +35,12 @@ open class AppWideChatEventListener(
         var instance: AppWideChatEventListener? = null
 
         fun get(context: Context): AppWideChatEventListener {
-            return instance ?: {
-                AppWideChatEventListener(
-                    createConversationsUsecase = CreateConversationsUsecase(ChatApiService(client)),
-                    ChatDatabase.get(context)
-                ).apply {
-                    instance = this
-                }
-            }()
+            return instance ?: AppWideChatEventListener(
+                createConversationsUsecase = CreateConversationsUsecase(ChatApiService(client)),
+                ChatDatabase.get(context)
+            ).apply {
+                instance = this
+            }
         }
     }
 
@@ -54,6 +52,7 @@ open class AppWideChatEventListener(
 
     open suspend fun connectToChatService() {
         if (session.appWideChatService?.socketIsConnected == false) {
+            session.appWideChatService?.resetReconnectionDelay()
             createNewConversations {
                 session.appWideChatService?.connect()
             }
@@ -100,7 +99,7 @@ open class AppWideChatEventListener(
 
     }
 
-    override fun onError(response: ChatServiceErrorResponse) {
+    override fun onError(response: ChatServiceErrorResponse<Message>) {
 
     }
 

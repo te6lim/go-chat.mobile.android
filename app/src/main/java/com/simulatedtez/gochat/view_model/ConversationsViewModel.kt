@@ -9,16 +9,19 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.ChatDatabase
+import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.enums.MessageStatus
+import com.simulatedtez.gochat.model.enums.PresenceStatus
 import com.simulatedtez.gochat.remote.api_services.ChatApiService
 import com.simulatedtez.gochat.model.Message
+import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.listener.ConversationEventListener
 import com.simulatedtez.gochat.remote.api_services.ConversationsService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
-import com.simulatedtez.gochat.model.response.NewChatResponse
+import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatUsecase
 import com.simulatedtez.gochat.repository.ConversationsRepository
 import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.ParentResponse
@@ -38,9 +41,6 @@ class ConversationsViewModel(
     private val conversationsRepository: ConversationsRepository
 ): ViewModel(), ConversationEventListener {
 
-    private val _tokenExpired = MutableLiveData<Boolean>()
-    val tokenExpired: LiveData<Boolean> = _tokenExpired
-
     private val _waiting = MutableLiveData<Boolean>()
     val waiting: LiveData<Boolean> = _waiting
 
@@ -59,11 +59,13 @@ class ConversationsViewModel(
     private val _isUserTyping = MutableLiveData<Pair<String, Boolean>>()
     val isUserTyping: LiveData<Pair<String, Boolean>> = _isUserTyping
 
-    private val receivedMessagesQueue: Queue<Message> = LinkedList()
+    private val _pendingInvites = MutableLiveData<List<Message>>(emptyList())
+    val pendingInvites: LiveData<List<Message>> = _pendingInvites
 
-    fun resetTokenExpired() {
-        _tokenExpired.value = false
-    }
+    private val _acceptedInviteChat = Channel<ChatInfo>(Channel.BUFFERED)
+    val acceptedInviteChat = _acceptedInviteChat.receiveAsFlow()
+
+    private val receivedMessagesQueue: Queue<Message> = LinkedList()
 
     fun fetchConversations() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -80,6 +82,61 @@ class ConversationsViewModel(
         }
     }
 
+    fun createGroupChat(name: String, participants: List<String>) {
+        _waiting.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.createGroupChat(
+                name = name,
+                participants = participants,
+                onSuccess = { groupChat ->
+                    val newConvo = DBConversation(
+                        chatReference = groupChat.chatReference,
+                        otherUser = "",
+                        chatType = "group",
+                        chatName = groupChat.name
+                    )
+                    viewModelScope.launch(Dispatchers.IO) {
+                        _newConversation.send(newConvo)
+                        _waiting.postValue(false)
+                    }
+                },
+                onFailure = { reason ->
+                    _waiting.postValue(false)
+                    _errorMessage.postValue(reason)
+                }
+            )
+        }
+    }
+
+    fun deleteConversation(chatReference: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.deleteConversation(chatReference)
+        }
+    }
+
+    fun acceptInvite(chatReference: String) {
+        val invite = _pendingInvites.value?.find { it.chatReference == chatReference } ?: return
+        _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
+        conversationsRepository.acceptInvite(chatReference)
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.storeConversation(
+                DBConversation(chatReference = chatReference, otherUser = invite.sender)
+            )
+            _acceptedInviteChat.send(
+                ChatInfo(
+                    username = session.username,
+                    recipientsUsernames = listOf(invite.sender),
+                    chatReference = chatReference
+                )
+            )
+        }
+    }
+
+    fun declineInvite(chatReference: String) {
+        _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
+        conversationsRepository.declineInvite(chatReference)
+    }
+
     fun resetErrorMessage() {
         _errorMessage.value = null
     }
@@ -94,7 +151,8 @@ class ConversationsViewModel(
     override fun onNewChatAdded(chat: NewChatResponse) {
         val newConversation = DBConversation(
             otherUser = chat.other,
-            chatReference = chat.chatReference
+            chatReference = chat.chatReference,
+            isPendingSentInvite = true
         )
         viewModelScope.launch(Dispatchers.IO) {
             _newConversation.send(newConversation)
@@ -103,9 +161,10 @@ class ConversationsViewModel(
     }
 
     override fun onError(response: IResponse.Failure<ParentResponse<String>>) {
-        if (response.response?.statusCode == HttpStatusCode.Unauthorized.value) {
-            _tokenExpired.value = true
-        }
+    }
+
+    fun postPresence(presenceStatus: PresenceStatus) {
+        conversationsRepository.userPresenceHelper.postNewUserPresence(presenceStatus)
     }
 
     fun connectToChatService() {
@@ -128,7 +187,7 @@ class ConversationsViewModel(
         _isConnected.value = false
     }
 
-    override fun onError(error: ChatServiceErrorResponse) {
+    override fun onError(error: ChatServiceErrorResponse<Message>) {
 
     }
 
@@ -143,6 +202,51 @@ class ConversationsViewModel(
                 }
             }
         }
+    }
+
+    override fun onChatInviteReceived(message: Message) {
+        val current = _pendingInvites.value ?: emptyList()
+        if (current.none { it.chatReference == message.chatReference }) {
+            _pendingInvites.value = current + message
+        }
+    }
+
+    override fun onInviteAccepted(chatReference: String) {
+        // Someone accepted OUR invite — clear pending state then refresh
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.clearPendingSentInvite(chatReference)
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
+        }
+    }
+
+    override fun onInviteRevoked(chatReference: String) {
+        // The sender revoked their invite — remove from our received pending list
+        _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
+    }
+
+    override fun onGroupInviteReceived(message: Message) {
+        // We were added to a group — refresh conversations and notify the user
+        viewModelScope.launch(Dispatchers.IO) {
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
+        }
+        _errorMessage.postValue("You were added to a group chat")
+    }
+
+    override fun onGroupRemoved(chatReference: String) {
+        // We were removed from a group — remove from list and notify
+        viewModelScope.launch(Dispatchers.IO) {
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
+        }
+        _errorMessage.postValue("You were removed from a group chat")
+    }
+
+    override fun onInviteDeclined(chatReference: String) {
+        // Someone declined OUR invite — clean up locally and notify user
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.deleteConversation(chatReference)
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
+        }
+        _errorMessage.postValue("Your invitation was declined.")
     }
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
@@ -176,11 +280,14 @@ class ConversationsViewModel(
 
 class ConversationsViewModelProvider(private val context: Context): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        val chatApiService = ChatApiService(client)
         val repo = ConversationsRepository(
             AddNewChatUsecase(ConversationsService(client)),
-            createConversationsUsecase = CreateConversationsUsecase(ChatApiService(client)),
+            createConversationsUsecase = CreateConversationsUsecase(chatApiService),
+            chatApiService = chatApiService,
             ConversationDatabase.get(context),
-            ChatDatabase.get(context)
+            ChatDatabase.get(context),
+            createGroupChatUsecase = CreateGroupChatUsecase(chatApiService)
         ).apply {
             session.appWideChatService?.setListener(this)
         }
