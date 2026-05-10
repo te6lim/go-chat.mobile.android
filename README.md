@@ -24,7 +24,7 @@
 
 ## short demo
 
-<img src="https://github.com/user-attachments/assets/1db34e79-8029-4a62-a0da-82d450173dc1" width="700" height="400" alt="Demo gif">
+<img src="https://github.com/user-attachments/assets/1db34e79-8029-4a62-a0da-82d450173dc1" width="700" height="600" alt="Demo gif">
 
 
 
