@@ -2,8 +2,10 @@ package com.simulatedtez.gochat.remote.api_services
 
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.model.response.ConversationSummary
+import com.simulatedtez.gochat.model.response.GroupChatResponse
 import com.simulatedtez.gochat.remote.api_usecases.CreateChatRoomParams
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsParams
+import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatParams
 import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.Response
@@ -47,6 +49,15 @@ class ChatApiService(private val client: HttpClient): IChatApiService {
         return Response<List<ConversationSummary>> {
             client.getWithBaseUrl("/user/$username/conversations") {
                 header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            }
+        }.invoke()
+    }
+
+    override suspend fun createGroupChat(params: CreateGroupChatParams): IResponse<ParentResponse<GroupChatResponse>> {
+        return Response<GroupChatResponse> {
+            client.postWithBaseUrl("/create-groupchat") {
+                header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+                setBody(params.request)
             }
         }.invoke()
     }

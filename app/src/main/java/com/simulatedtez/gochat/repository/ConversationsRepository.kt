@@ -10,10 +10,13 @@ import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.listener.ConversationEventListener
+import com.simulatedtez.gochat.model.response.GroupChatResponse
 import com.simulatedtez.gochat.remote.api_interfaces.IChatApiService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsParams
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
+import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatParams
+import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.StartNewChatParams
 import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.remote.IResponse
@@ -36,6 +39,7 @@ class ConversationsRepository(
     private val chatApiService: IChatApiService,
     private val conversationDB: ConversationDatabase,
     chatDb: IChatStorage,
+    private val createGroupChatUsecase: CreateGroupChatUsecase,
 ): AppWideChatEventListener(createConversationsUsecase, chatDb) {
 
     override val context = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -55,7 +59,13 @@ class ConversationsRepository(
         if (response is IResponse.Success) {
             val summaries = response.data?.data ?: return emptyList()
             val seeded = summaries.map { s ->
-                DBConversation(chatReference = s.chatReference, otherUser = s.otherUsername)
+                val isGroup = s.chatType == "group"
+                DBConversation(
+                    chatReference = s.chatReference,
+                    otherUser = if (isGroup) "" else s.otherUsername,
+                    chatType = s.chatType,
+                    chatName = if (isGroup) s.otherUsername else ""
+                )
             }
             conversationDB.insertConversations(seeded)
             return seeded
@@ -105,7 +115,9 @@ class ConversationsRepository(
                 chatReference = convo.chatReference,
                 lastMessage = newMessage.message,
                 timestamp = newMessage.timestamp,
-                unreadCount = convo.unreadCount + 1
+                unreadCount = convo.unreadCount + 1,
+                chatType = convo.chatType,
+                chatName = convo.chatName
             )
             temporaryConversationList.remove(convo)
             temporaryConversationList.add(conversation)
@@ -215,6 +227,29 @@ class ConversationsRepository(
                         conversationEventListener?.onInviteRevoked(message.chatReference)
                     }
                 }
+                MessageStatus.GROUP_INVITE -> {
+                    context.launch(Dispatchers.IO) {
+                        conversationDB.insertConversation(
+                            DBConversation(
+                                chatReference = message.chatReference,
+                                otherUser = "",
+                                chatType = "group",
+                                chatName = "Group Chat"
+                            )
+                        )
+                    }
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onGroupInviteReceived(message)
+                    }
+                }
+                MessageStatus.GROUP_REMOVED -> {
+                    context.launch(Dispatchers.IO) {
+                        conversationDB.deleteConversation(message.chatReference)
+                    }
+                    context.launch(Dispatchers.Main) {
+                        conversationEventListener?.onGroupRemoved(message.chatReference)
+                    }
+                }
                 else -> conversationEventListener?.onReceiveRecipientMessageStatus(message.chatReference, it)
             }
             return
@@ -275,5 +310,48 @@ class ConversationsRepository(
                 }
             }
         }
+    }
+
+    suspend fun createGroupChat(
+        name: String,
+        participants: List<String>,
+        onSuccess: (GroupChatResponse) -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        val params = CreateGroupChatParams(
+            request = CreateGroupChatParams.Request(name = name, participants = participants)
+        )
+        createGroupChatUsecase.call(
+            params,
+            object : IResponseHandler<ParentResponse<GroupChatResponse>, IResponse<ParentResponse<GroupChatResponse>>> {
+                override fun onResponse(response: IResponse<ParentResponse<GroupChatResponse>>) {
+                    when (response) {
+                        is IResponse.Success -> {
+                            response.data.data?.let { groupChat ->
+                                context.launch(Dispatchers.IO) {
+                                    storeConversation(
+                                        DBConversation(
+                                            chatReference = groupChat.chatReference,
+                                            otherUser = "",
+                                            chatType = "group",
+                                            chatName = groupChat.name
+                                        )
+                                    )
+                                    context.launch(Dispatchers.Main) {
+                                        onSuccess(groupChat)
+                                    }
+                                }
+                            }
+                        }
+                        is IResponse.Failure -> {
+                            context.launch(Dispatchers.Main) {
+                                onFailure(response.response?.message ?: "Failed to create group")
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+            }
+        )
     }
 }

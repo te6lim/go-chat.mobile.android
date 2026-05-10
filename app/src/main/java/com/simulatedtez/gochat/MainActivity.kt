@@ -24,24 +24,27 @@ import com.simulatedtez.gochat.view.SignupScreen
 import com.simulatedtez.gochat.model.enums.ChatScreens
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.enums.PresenceStatus
-import com.simulatedtez.gochat.view.ChatScreen
-import com.simulatedtez.gochat.view.ConversationsScreen
 import com.simulatedtez.gochat.view.ConversationsScreenActions
 import com.simulatedtez.gochat.ui.theme.GoChatTheme
+import com.simulatedtez.gochat.view.ConversationsScreen
 import com.simulatedtez.gochat.view_model.AppViewModel
 import com.simulatedtez.gochat.view_model.AppViewModelProvider
+import com.simulatedtez.gochat.view.redesign.AuthLandingScreen
+import com.simulatedtez.gochat.view.redesign.ChatScreen
+import com.simulatedtez.gochat.view.redesign.ChatScreenActions
+import com.simulatedtez.gochat.view.redesign.ChatScreen as NewChatScreen
+import com.simulatedtez.gochat.view.redesign.ConversationsScreen as NewConversationsScreen
+import com.simulatedtez.gochat.view.redesign.LoginScreen as NewLoginScreen
+import com.simulatedtez.gochat.view.redesign.SignupScreen as NewSignupScreen
+
+// Flip to true to use the redesigned screens instead of the originals
+const val USE_NEW_UI = true
 
 class MainActivity : ComponentActivity() {
-
-    private lateinit var appViewModel: AppViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        appViewModel = ViewModelProvider(
-            this, AppViewModelProvider(this))[AppViewModel::class.java]
-        appViewModel.connectToChatService()
 
         setContent {
             GoChatTheme {
@@ -56,6 +59,7 @@ fun AppNavigation(context: Context) {
 
     val viewModelFactory = remember { AppViewModelProvider(context) }
     val viewModel: AppViewModel = viewModel(factory = viewModelFactory)
+    viewModel.connectToChatService()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(Unit) {
@@ -82,12 +86,60 @@ fun AppNavigation(context: Context) {
     val navController = rememberNavController()
 
     val startDestination = if (UserPreference.getAccessToken() != null) {
-        ChatScreens.CONVERSATIONS.name
+        if (USE_NEW_UI) "new_conversations" else ChatScreens.CONVERSATIONS.name
+    } else if (USE_NEW_UI) {
+        "auth_landing"
     } else {
         AuthScreens.LOGIN.name
     }
 
     NavHost(navController = navController, startDestination = startDestination) {
+        composable("auth_landing") {
+            AuthLandingScreen(
+                onSignInClicked = { navController.navigate("new_login") },
+                onSignInWithGoogleClicked = { /* TODO: Google OAuth */ }
+            )
+        }
+
+        composable("new_login") {
+            NewLoginScreen(
+                onLoginSuccess = {
+                    navController.navigate("new_conversations") {
+                        popUpTo("auth_landing") { inclusive = true }
+                    }
+                },
+                onCreateAccountClicked = {navController.navigate("new_signup") },
+                onBackPressed = { navController.navigateUp() }
+            )
+        }
+
+        composable("new_signup") {
+            NewSignupScreen(
+                onSignupComplete = {
+                    navController.navigate("new_conversations") {
+                        popUpTo("auth_landing") { inclusive = true }
+                    }
+                },
+                onAlreadyHaveAccount = {
+                    navController.navigate("new_login") {
+                        popUpTo("new_signup") { inclusive = true }
+                    }
+                },
+                onBackPressed = { navController.popBackStack() }
+            )
+        }
+
+        composable("new_conversations") {
+            NewConversationsScreen(
+                conversationsScreenActions = object: ConversationsScreenActions {
+                    override fun onChatClicked(chatInfo: ChatInfo) {
+                        session.setActiveChat(chatInfo)
+                        navController.navigate(ChatScreens.CHAT.name)
+                    }
+                }
+            )
+        }
+
         composable(AuthScreens.LOGIN.name) {
             navController.LoginScreen()
         }
@@ -97,22 +149,49 @@ fun AppNavigation(context: Context) {
         }
 
         composable(ChatScreens.CONVERSATIONS.name) {
-            navController.ConversationsScreen(
-                screenActions = object: ConversationsScreenActions {
-                    override fun onChatClicked(chatInfo: ChatInfo) {
-                        session.setActiveChat(chatInfo)
-                        navController.navigate(ChatScreens.CHAT.name)
+            if (USE_NEW_UI) {
+                NewConversationsScreen(
+                    object: ConversationsScreenActions {
+                        override fun onChatClicked(chatInfo: ChatInfo) {
+                            session.setActiveChat(chatInfo)
+                            navController.navigate(ChatScreens.CHAT.name)
+                        }
                     }
+                )
+            } else {
+                navController.ConversationsScreen(
+                    screenActions = object: ConversationsScreenActions {
+                        override fun onChatClicked(chatInfo: ChatInfo) {
+                            session.setActiveChat(chatInfo)
+                            navController.navigate(ChatScreens.CHAT.name)
+                        }
 
-                }
-            )
+                    }
+                )
+            }
         }
 
         composable(
             ChatScreens.CHAT.name
         ) {
             session.lastActiveChat?.let {
-                navController.ChatScreen(it)
+                if (USE_NEW_UI) {
+                    NewChatScreen(
+                        it, object: ChatScreenActions {
+                            override fun onBack() {
+                                navController.navigateUp()
+                            }
+                        }
+                    )
+                } else {
+                    ChatScreen(
+                        it, object: ChatScreenActions {
+                            override fun onBack() {
+                                navController.navigateUp()
+                            }
+                        }
+                    )
+                }
             }
         }
     }

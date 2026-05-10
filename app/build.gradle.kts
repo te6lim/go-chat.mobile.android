@@ -31,9 +31,9 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "AUTH_BASE_URL", "\"http://192.168.0.3:50051\"")
-            buildConfigField("String", "CHAT_HISTORY_BASE_URL", "\"http://192.168.0.3:50053\"")
-            buildConfigField("String", "WEBSOCKET_BASE_URL", "\"ws://192.168.0.3:50053\"")
+            buildConfigField("String", "AUTH_BASE_URL", "\"http://192.168.0.2:50051\"")
+            buildConfigField("String", "CHAT_HISTORY_BASE_URL", "\"http://192.168.0.2:50053\"")
+            buildConfigField("String", "WEBSOCKET_BASE_URL", "\"ws://192.168.0.2:50053\"")
 
         }
         release {

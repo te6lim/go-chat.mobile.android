@@ -11,4 +11,6 @@ data class Conversation(
     var unreadCount: Int = 0,
     val contactAvi: String = "",
     val isPendingSentInvite: Boolean = false,
+    val chatType: String = "private",
+    val chatName: String = "",
 )

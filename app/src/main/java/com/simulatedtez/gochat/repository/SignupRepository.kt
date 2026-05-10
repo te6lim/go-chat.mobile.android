@@ -75,7 +75,7 @@ class SignupRepository(
                     when (response) {
                         is IResponse.Success -> {
                             response.data.data?.let {
-                                session.saveAccessToken(it.accessToken)
+                                session.saveTokenDetails(it.accessToken, it.expiryTime)
                                 session.saveUsername(username)
                                 session.savePassword(password)
 

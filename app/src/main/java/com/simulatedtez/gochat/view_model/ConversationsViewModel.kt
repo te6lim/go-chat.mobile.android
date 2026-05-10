@@ -21,6 +21,7 @@ import com.simulatedtez.gochat.listener.ConversationEventListener
 import com.simulatedtez.gochat.remote.api_services.ConversationsService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
+import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatUsecase
 import com.simulatedtez.gochat.repository.ConversationsRepository
 import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.ParentResponse
@@ -78,6 +79,32 @@ class ConversationsViewModel(
         _waiting.value = true
         viewModelScope.launch(Dispatchers.IO) {
             conversationsRepository.addNewConversation(other, messageCount)
+        }
+    }
+
+    fun createGroupChat(name: String, participants: List<String>) {
+        _waiting.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            conversationsRepository.createGroupChat(
+                name = name,
+                participants = participants,
+                onSuccess = { groupChat ->
+                    val newConvo = DBConversation(
+                        chatReference = groupChat.chatReference,
+                        otherUser = "",
+                        chatType = "group",
+                        chatName = groupChat.name
+                    )
+                    viewModelScope.launch(Dispatchers.IO) {
+                        _newConversation.send(newConvo)
+                        _waiting.postValue(false)
+                    }
+                },
+                onFailure = { reason ->
+                    _waiting.postValue(false)
+                    _errorMessage.postValue(reason)
+                }
+            )
         }
     }
 
@@ -197,6 +224,22 @@ class ConversationsViewModel(
         _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
     }
 
+    override fun onGroupInviteReceived(message: Message) {
+        // We were added to a group — refresh conversations and notify the user
+        viewModelScope.launch(Dispatchers.IO) {
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
+        }
+        _errorMessage.postValue("You were added to a group chat")
+    }
+
+    override fun onGroupRemoved(chatReference: String) {
+        // We were removed from a group — remove from list and notify
+        viewModelScope.launch(Dispatchers.IO) {
+            _conversations.postValue(conversationsRepository.getConversations().toMutableList())
+        }
+        _errorMessage.postValue("You were removed from a group chat")
+    }
+
     override fun onInviteDeclined(chatReference: String) {
         // Someone declined OUR invite — clean up locally and notify user
         viewModelScope.launch(Dispatchers.IO) {
@@ -243,7 +286,8 @@ class ConversationsViewModelProvider(private val context: Context): ViewModelPro
             createConversationsUsecase = CreateConversationsUsecase(chatApiService),
             chatApiService = chatApiService,
             ConversationDatabase.get(context),
-            ChatDatabase.get(context)
+            ChatDatabase.get(context),
+            createGroupChatUsecase = CreateGroupChatUsecase(chatApiService)
         ).apply {
             session.appWideChatService?.setListener(this)
         }

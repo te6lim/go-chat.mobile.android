@@ -76,6 +76,10 @@ data class DBConversation(
     val contactAvi: String = "",
     @ColumnInfo("isPendingSentInvite")
     val isPendingSentInvite: Boolean = false,
+    @ColumnInfo("chatType")
+    val chatType: String = "private",
+    @ColumnInfo("chatName")
+    val chatName: String = "",
 )
 
 @Dao
@@ -116,7 +120,9 @@ fun DBConversation.toConversation(): Conversation {
         timestamp = timestamp,
         unreadCount = unreadCount,
         contactAvi = contactAvi,
-        isPendingSentInvite = isPendingSentInvite
+        isPendingSentInvite = isPendingSentInvite,
+        chatType = chatType,
+        chatName = chatName
     )
 }
 

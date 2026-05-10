@@ -56,6 +56,16 @@ object UserPreference {
         return preferences.getBoolean(READ_RECEIPT_TOGGLE, true)
     }
 
+    fun revealAnimationToggle(isEnabled: Boolean) {
+        preferences.edit {
+            putBoolean(REVEAL_ANIMATION_PREF, isEnabled)
+        }
+    }
+
+    fun isRevealAnimationEnabled(): Boolean {
+        return preferences.getBoolean(REVEAL_ANIMATION_PREF, true)
+    }
+
     fun storeCutOffDateForMarkingMessagesAsSeen(date: LocalDateTime) {
         preferences.edit {
             putString(CUTOFF_DATE_FOR_MARKING_MESSAGES_AS_SEEN, date.toISOString())
@@ -123,6 +133,18 @@ object UserPreference {
         }
     }
 
+    fun storeTokenExpiry(expiryMs: Long) {
+        preferences.edit { putLong(TOKEN_EXPIRY_PREF, expiryMs) }
+    }
+
+    fun getTokenExpiry(): Long {
+        return preferences.getLong(TOKEN_EXPIRY_PREF, 0L)
+    }
+
+    fun deleteTokenExpiry() {
+        preferences.edit { remove(TOKEN_EXPIRY_PREF) }
+    }
+
     fun storeChatHistoryStatus(chatRef: String, isNew: Boolean) {
         preferences.edit {
             putBoolean(chatRef, isNew)
@@ -137,7 +159,9 @@ object UserPreference {
 const val BACKUP_MESSAGES = "backup-chat"
 const val PRESENCE_SHARING_TOGGLE = "presence-sharing-toggle"
 const val READ_RECEIPT_TOGGLE = "read-receipt-toggle"
+const val REVEAL_ANIMATION_PREF = "reveal-animation-pref"
 const val ACCESS_TOKEN_PREF = "access-token-pref"
 const val USERNAME_PREF = "username-pref"
 const val PASSWORD_PREF = "password-pref"
 const val CUTOFF_DATE_FOR_MARKING_MESSAGES_AS_SEEN = "cut-off date for marking messages as seen"
+const val TOKEN_EXPIRY_PREF = "token-expiry-pref"

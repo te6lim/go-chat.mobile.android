@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -317,50 +318,77 @@ fun NavController.ChatScreen(chatInfo: ChatInfo) {
                         }
 
                         // Avatar
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(avatarColorFor(chatInfo.recipientsUsernames[0])),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = chatInfo.recipientsUsernames[0]
-                                    .firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 16.sp
-                            )
+                        if (chatInfo.isGroup) {
+                            val groupName = chatInfo.chatName.ifEmpty { "Group" }
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(avatarColorFor(groupName)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Group,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        } else {
+                            val recipientName = chatInfo.recipientsUsernames.firstOrNull() ?: ""
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(avatarColorFor(recipientName)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = recipientName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = chatInfo.recipientsUsernames[0],
+                                text = if (chatInfo.isGroup) chatInfo.chatName.ifEmpty { "Group Chat" }
+                                       else chatInfo.recipientsUsernames.firstOrNull() ?: "",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            presenceStatus?.let { status ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(7.dp)
-                                            .clip(CircleShape)
-                                            .background(presenceColor(status))
-                                    )
-                                    Text(
-                                        text = when (status) {
-                                            PresenceStatus.ONLINE -> "Online"
-                                            PresenceStatus.AWAY -> "Away"
-                                            PresenceStatus.OFFLINE -> "Offline"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = presenceColor(status)
-                                    )
+                            if (chatInfo.isGroup) {
+                                Text(
+                                    text = "Group chat",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                presenceStatus?.let { status ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(presenceColor(status))
+                                        )
+                                        Text(
+                                            text = when (status) {
+                                                PresenceStatus.ONLINE -> "Online"
+                                                PresenceStatus.AWAY -> "Away"
+                                                PresenceStatus.OFFLINE -> "Offline"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = presenceColor(status)
+                                        )
+                                    }
                                 }
                             }
                         }

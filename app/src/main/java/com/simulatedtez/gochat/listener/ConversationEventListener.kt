@@ -13,4 +13,6 @@ interface ConversationEventListener: SocketConnection, MessageReceiver, MessageS
     fun onInviteAccepted(chatReference: String)
     fun onInviteDeclined(chatReference: String)
     fun onInviteRevoked(chatReference: String)
+    fun onGroupInviteReceived(message: Message)
+    fun onGroupRemoved(chatReference: String)
 }

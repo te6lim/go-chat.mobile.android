@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +40,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -108,6 +111,24 @@ private fun LetterAvatar(name: String, size: Int = 52) {
             color = Color.White,
             fontWeight = FontWeight.SemiBold,
             fontSize = (size * 0.38).sp
+        )
+    }
+}
+
+@Composable
+private fun GroupAvatar(name: String, size: Int = 52) {
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(avatarColorFor(name.ifEmpty { "group" })),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Group,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size((size * 0.52).dp)
         )
     }
 }
@@ -347,8 +368,9 @@ fun NavController.ConversationsScreen(screenActions: ConversationsScreenActions)
             containerColor = MaterialTheme.colorScheme.surface
         ) {
             NewChatSheetContent(
-                !waiting,
-                onAddClick = { username -> viewModel.addNewConversation(username, 0) }
+                isEnabled = !waiting,
+                onAddPrivateClick = { username -> viewModel.addNewConversation(username, 0) },
+                onCreateGroupClick = { name, participants -> viewModel.createGroupChat(name, participants) }
             )
         }
     }
@@ -505,6 +527,8 @@ fun ChatItem(
     isUserTyping: Pair<String, Boolean>?,
     screenActions: ConversationsScreenActions
 ) {
+    val isGroup = chat.chatType == "group"
+    val displayName = if (isGroup) chat.chatName.ifEmpty { "Group Chat" } else chat.otherUser
     val isUnread = chat.unreadCount > 0
 
     Row(
@@ -515,21 +539,27 @@ fun ChatItem(
                 screenActions.onChatClicked(
                     ChatInfo(
                         username = session.username,
-                        recipientsUsernames = listOf(chat.otherUser),
-                        chatReference = chat.chatReference
+                        recipientsUsernames = if (isGroup) emptyList() else listOf(chat.otherUser),
+                        chatReference = chat.chatReference,
+                        isGroup = isGroup,
+                        chatName = if (isGroup) displayName else ""
                     )
                 )
             }
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LetterAvatar(name = chat.otherUser)
+        if (isGroup) {
+            GroupAvatar(name = displayName)
+        } else {
+            LetterAvatar(name = displayName)
+        }
 
         Spacer(modifier = Modifier.width(14.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = chat.otherUser,
+                text = displayName,
                 style = if (isUnread)
                     MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                 else MaterialTheme.typography.titleSmall,
@@ -596,20 +626,65 @@ fun ChatItem(
 // ── New chat sheet ────────────────────────────────────────────────────────────
 
 @Composable
-fun NewChatSheetContent(isEnabled: Boolean, onAddClick: (String) -> Unit) {
+fun NewChatSheetContent(
+    isEnabled: Boolean,
+    onAddPrivateClick: (String) -> Unit,
+    onCreateGroupClick: (name: String, participants: List<String>) -> Unit
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    val tabs = listOf("Direct", "Group")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "New Chat",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
+        )
+
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        if (selectedTab == 0) {
+            DirectChatContent(isEnabled = isEnabled, onAddClick = onAddPrivateClick)
+        } else {
+            GroupChatContent(isEnabled = isEnabled, onCreateClick = onCreateGroupClick)
+        }
+    }
+}
+
+@Composable
+private fun DirectChatContent(isEnabled: Boolean, onAddClick: (String) -> Unit) {
     var username by remember { mutableStateOf("") }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "New conversation",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(20.dp))
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
@@ -630,9 +705,7 @@ fun NewChatSheetContent(isEnabled: Boolean, onAddClick: (String) -> Unit) {
                 .height(48.dp),
             shape = RoundedCornerShape(14.dp),
             enabled = username.isNotBlank() && isEnabled,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
             Text(
                 "Start Chat",
@@ -640,7 +713,77 @@ fun NewChatSheetContent(isEnabled: Boolean, onAddClick: (String) -> Unit) {
                 color = MaterialTheme.colorScheme.onPrimary
             )
         }
-        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun GroupChatContent(
+    isEnabled: Boolean,
+    onCreateClick: (name: String, participants: List<String>) -> Unit
+) {
+    var groupName by remember { mutableStateOf("") }
+    var participantsText by remember { mutableStateOf("") }
+    val participantsList = remember(participantsText) {
+        participantsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        OutlinedTextField(
+            value = groupName,
+            onValueChange = { groupName = it },
+            label = { Text("Group name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        OutlinedTextField(
+            value = participantsText,
+            onValueChange = { participantsText = it },
+            label = { Text("Participants (comma-separated)") },
+            placeholder = { Text("alice, bob, charlie") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = false,
+            minLines = 2,
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
+        )
+        if (participantsList.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "${participantsList.size} participant${if (participantsList.size == 1) "" else "s"} added",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+        Button(
+            onClick = { onCreateClick(groupName, participantsList) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            enabled = groupName.isNotBlank() && participantsList.isNotEmpty() && isEnabled,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+        ) {
+            Text(
+                "Create Group",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+        }
     }
 }
 
