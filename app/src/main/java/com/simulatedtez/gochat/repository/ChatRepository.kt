@@ -20,6 +20,7 @@ import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.api_usecases.CreateChatRoomParams
 import com.simulatedtez.gochat.remote.api_usecases.CreateChatRoomUsecase
 import com.simulatedtez.gochat.util.UserPresenceHelper
+import com.simulatedtez.gochat.util.androidConfig
 import com.simulatedtez.gochat.util.newPrivateChat
 import com.simulatedtez.gochat.util.toISOString
 import io.github.aakira.napier.Napier
@@ -47,7 +48,7 @@ class ChatRepository(
     private var isNewChat = UserPreference.isNewChatHistory(chatInfo.chatReference)
 
     private var chatEventListener: ChatEventListener? = null
-    private var chatService = newPrivateChat(chatInfo, this)
+    private var chatService = newPrivateChat(chatInfo, this, androidConfig, Session.session)
 
     val userPresenceHelper = UserPresenceHelper(
         chatService, PresenceStatus.ONLINE, chatInfo, Session.session

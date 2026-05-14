@@ -4,6 +4,7 @@ import ChatEngine
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.session.ISession
+import com.simulatedtez.gochat.util.androidConfig
 import com.simulatedtez.gochat.util.newAppWideChatService
 import listeners.ChatEngineEventListener
 import java.time.Instant
@@ -71,7 +72,7 @@ open class Session private constructor() : ISession {
 
     fun setupAppWideChatService(eventListener: ChatEngineEventListener<Message>) {
         if (appWideChatService == null) {
-            appWideChatService = newAppWideChatService(session.username, eventListener)
+            appWideChatService = newAppWideChatService(session.username, eventListener, androidConfig, session)
         }
     }
 
