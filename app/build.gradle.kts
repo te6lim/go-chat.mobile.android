@@ -31,9 +31,9 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "AUTH_BASE_URL", "\"http://192.168.0.2:50051\"")
-            buildConfigField("String", "CHAT_HISTORY_BASE_URL", "\"http://192.168.0.2:50053\"")
-            buildConfigField("String", "WEBSOCKET_BASE_URL", "\"ws://192.168.0.2:50053\"")
+            buildConfigField("String", "AUTH_BASE_URL", "\"http://192.168.0.3:50051\"")
+            buildConfigField("String", "CHAT_HISTORY_BASE_URL", "\"http://192.168.0.3:50053\"")
+            buildConfigField("String", "WEBSOCKET_BASE_URL", "\"ws://192.168.0.3:50053\"")
 
         }
         release {
@@ -98,12 +98,13 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.security.crypto)
-    implementation(libs.napier.android)
+    implementation(libs.napier)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(project.files("libs/chat-library-2.0.jar"))
+    implementation(project(":shared"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

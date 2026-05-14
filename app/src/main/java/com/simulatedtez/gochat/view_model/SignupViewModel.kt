@@ -7,15 +7,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.simulatedtez.gochat.Session.Companion.session
+import com.simulatedtez.gochat.remote.IResponse
+import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.api_services.AuthApiService
 import com.simulatedtez.gochat.remote.api_usecases.LoginUsecase
 import com.simulatedtez.gochat.remote.api_usecases.SignupUsecase
+import com.simulatedtez.gochat.remote.client
 import com.simulatedtez.gochat.repository.SignupEventListener
 import com.simulatedtez.gochat.repository.SignupRepository
-import com.simulatedtez.gochat.remote.IResponse
-import com.simulatedtez.gochat.remote.ParentResponse
-import com.simulatedtez.gochat.remote.client
 import com.simulatedtez.gochat.util.AppWideChatEventListener
+import com.simulatedtez.gochat.util.androidConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -27,7 +28,6 @@ class SignupViewModel(
     private val _isSignupSuccessful = MutableLiveData<Boolean>()
     val isSignupSuccessful: LiveData<Boolean> = _isSignupSuccessful
 
-    // true = signup + auto-login succeeded, navigate directly to conversations
     private val _isAutoLoginSuccessful = MutableLiveData<Boolean>()
     val isAutoLoginSuccessful: LiveData<Boolean> = _isAutoLoginSuccessful
 
@@ -42,7 +42,6 @@ class SignupViewModel(
     }
 
     override fun onSignUp() {
-        // Signup succeeded but auto-login failed — go to login screen
         _isSigningUp.value = false
         _isSignupSuccessful.value = true
     }
@@ -61,14 +60,12 @@ class SignupViewModel(
         session.setupAppWideChatService(AppWideChatEventListener.get(context))
     }
 
-    fun cancel() {
-        viewModelScope.cancel()
-    }
+    fun cancel() { viewModelScope.cancel() }
 }
 
 class SignupViewModelProvider(private val context: Context): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        val authApiService = AuthApiService(client)
+        val authApiService = AuthApiService(client, androidConfig)
         val repo = SignupRepository(
             SignupUsecase(authApiService),
             LoginUsecase(authApiService)

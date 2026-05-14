@@ -7,16 +7,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.simulatedtez.gochat.Session.Companion.session
-import com.simulatedtez.gochat.remote.api_services.AuthApiService
-import com.simulatedtez.gochat.remote.api_usecases.LoginUsecase
 import com.simulatedtez.gochat.model.response.LoginResponse
-import com.simulatedtez.gochat.repository.LoginEventListener
-import com.simulatedtez.gochat.repository.LoginRepository
 import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.ParentResponse
+import com.simulatedtez.gochat.remote.api_services.AuthApiService
+import com.simulatedtez.gochat.remote.api_usecases.LoginUsecase
 import com.simulatedtez.gochat.remote.client
+import com.simulatedtez.gochat.repository.LoginEventListener
+import com.simulatedtez.gochat.repository.LoginRepository
 import com.simulatedtez.gochat.util.AppWideChatEventListener
 import com.simulatedtez.gochat.util.CleanupManager
+import com.simulatedtez.gochat.util.androidConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -48,13 +49,9 @@ class LoginViewModel(
         _isLoggingIn.value = false
     }
 
-    fun resetLoginState() {
-        _isLoginSuccessful.postValue(null)
-    }
+    fun resetLoginState() { _isLoginSuccessful.postValue(null) }
 
-    fun cancel() {
-        viewModelScope.cancel()
-    }
+    fun cancel() { viewModelScope.cancel() }
 
     fun initializeAppWideChatService(context: Context) {
         session.setupAppWideChatService(AppWideChatEventListener.get(context))
@@ -64,7 +61,7 @@ class LoginViewModel(
 class LoginViewModelFactory(private val context: Context): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val repo = LoginRepository(
-            LoginUsecase(AuthApiService(client)),
+            LoginUsecase(AuthApiService(client, androidConfig)),
             CleanupManager.get(context)
         )
         return LoginViewModel(repo).apply {

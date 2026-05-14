@@ -3,30 +3,31 @@ package com.simulatedtez.gochat
 import ChatEngine
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.Message
+import com.simulatedtez.gochat.session.ISession
 import com.simulatedtez.gochat.util.newAppWideChatService
 import listeners.ChatEngineEventListener
 import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
-open class Session private constructor() {
+open class Session private constructor() : ISession {
 
-    var username: String = ""
-        private set
-    var accessToken: String = ""
-        private set
-    var tokenExpiryMs: Long = 0L
-        private set
+    override var username: String = ""
+        protected set
+    override var accessToken: String = ""
+        protected set
+    override var tokenExpiryMs: Long = 0L
+        protected set
     var lastActiveChat: ChatInfo? = null
         private set
 
-    var appWideChatService: ChatEngine<Message>? = null
-        private set
+    override var appWideChatService: ChatEngine<Message>? = null
+        protected set
 
-    var isReadReceiptEnabled: Boolean = false
-        private set
+    override var isReadReceiptEnabled: Boolean = false
+        protected set
 
-    var canSharePresenceStatus: Boolean = false
+    override var canSharePresenceStatus: Boolean = false
 
     var isRevealAnimationEnabled: Boolean = true
         private set
@@ -90,7 +91,7 @@ open class Session private constructor() {
 
     /** Atomically save both the access token and its expiry. Use this after any
      *  login or token-refresh so both fields are always in sync. */
-    fun saveTokenDetails(accessToken: String, expiryTime: String) {
+    override fun saveTokenDetails(accessToken: String, expiryTime: String) {
         saveAccessToken(accessToken)
         val expiryMs = parseExpiryToMillis(expiryTime)
         if (expiryMs > 0L) saveTokenExpiry(expiryMs)
@@ -118,16 +119,25 @@ open class Session private constructor() {
         }
     }
 
-    fun saveUsername(username: String) {
+    override fun saveUsername(username: String) {
         UserPreference.storeUsername(username)
         this.username = username
     }
 
-    fun savePassword(password: String) {
+    override fun savePassword(password: String) {
         UserPreference.storePassword(password)
     }
 
-    fun getPassword(): String? {
+    override fun getPassword(): String? {
         return UserPreference.getPassword()
     }
+
+    override fun isNewChatHistory(chatRef: String): Boolean =
+        UserPreference.isNewChatHistory(chatRef)
+
+    override fun storeChatHistoryStatus(chatRef: String, isNew: Boolean) =
+        UserPreference.storeChatHistoryStatus(chatRef, isNew)
+
+    override fun getCutOffDateForMarkingMessagesAsSeen(): String? =
+        UserPreference.getCutOffDateForMarkingMessagesAsSeen()
 }

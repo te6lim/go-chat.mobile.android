@@ -1,15 +1,15 @@
 package com.simulatedtez.gochat.repository
 
 import com.simulatedtez.gochat.Session.Companion.session
-import com.simulatedtez.gochat.remote.api_usecases.LoginParams
-import com.simulatedtez.gochat.remote.api_usecases.LoginUsecase
-import com.simulatedtez.gochat.remote.api_usecases.SignupParams
-import com.simulatedtez.gochat.remote.api_usecases.SignupUsecase
 import com.simulatedtez.gochat.model.response.LoginResponse
 import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.IResponseHandler
 import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.Response
+import com.simulatedtez.gochat.remote.api_usecases.LoginParams
+import com.simulatedtez.gochat.remote.api_usecases.LoginUsecase
+import com.simulatedtez.gochat.remote.api_usecases.SignupParams
+import com.simulatedtez.gochat.remote.api_usecases.SignupUsecase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,10 +30,7 @@ class SignupRepository(
 
     suspend fun signUp(username: String, password: String) {
         val signupParams = SignupParams(
-            request = SignupParams.Request(
-                username = username,
-                password = password
-            )
+            request = SignupParams.Request(username = username, password = password)
         )
         signupUsecase.call(
             signupParams, object: IResponseHandler<ParentResponse<String>,
@@ -42,7 +39,6 @@ class SignupRepository(
                     when (response) {
                         is IResponse.Success -> {
                             response.data.data?.let {
-                                // Auto-login after successful signup
                                 context.launch(Dispatchers.IO) {
                                     loginAfterSignup(username, password)
                                 }
@@ -53,8 +49,7 @@ class SignupRepository(
                                 signupEventListener?.onSignUpFailed(response)
                             }
                         }
-
-                        is Response -> {}
+                        is Response<*> -> {}
                     }
                 }
             }
@@ -63,10 +58,7 @@ class SignupRepository(
 
     private suspend fun loginAfterSignup(username: String, password: String) {
         val loginParams = LoginParams(
-            request = LoginParams.Request(
-                username = username,
-                password = password
-            )
+            request = LoginParams.Request(username = username, password = password)
         )
         loginUsecase.call(
             loginParams, object: IResponseHandler<ParentResponse<LoginResponse>,
@@ -78,20 +70,17 @@ class SignupRepository(
                                 session.saveTokenDetails(it.accessToken, it.expiryTime)
                                 session.saveUsername(username)
                                 session.savePassword(password)
-
                                 context.launch(Dispatchers.Main) {
                                     signupEventListener?.onSignUpAndLoginSuccess()
                                 }
                             }
                         }
                         is IResponse.Failure -> {
-                            // Signup succeeded but login failed — fall back to login screen
                             context.launch(Dispatchers.Main) {
                                 signupEventListener?.onSignUp()
                             }
                         }
-
-                        is Response -> {}
+                        is Response<*> -> {}
                     }
                 }
             }
