@@ -39,7 +39,11 @@ class InMemoryChatStorage(private val session: ISession) : IChatStorage {
         for ((id, chatRef) in messageRefToChatRef) {
             val list = listFor(chatRef)
             val idx = list.indexOfFirst { it.id == id }
-            if (idx >= 0) list[idx] = list[idx].copy(isSent = true)
+            if (idx >= 0) {
+                val m = list[idx]
+                list[idx] = DBMessage(m.id, m.message, m.sender, m.receiver, m.timestamp,
+                    m.chatReference, m.deliveredTimestamp, m.seenTimestamp, isSent = true, m.isReadReceiptEnabled)
+            }
         }
     }
 
@@ -47,7 +51,11 @@ class InMemoryChatStorage(private val session: ISession) : IChatStorage {
         for ((id, chatRef) in messageRefToChatRef) {
             val list = listFor(chatRef)
             val idx = list.indexOfFirst { it.id == id }
-            if (idx >= 0) list[idx] = list[idx].copy(seenTimestamp = "seen")
+            if (idx >= 0) {
+                val m = list[idx]
+                list[idx] = DBMessage(m.id, m.message, m.sender, m.receiver, m.timestamp,
+                    m.chatReference, m.deliveredTimestamp, seenTimestamp = "seen", m.isSent, m.isReadReceiptEnabled)
+            }
         }
     }
 

@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 rootProject.name = "GoChat"
 include(":app")
 include(":shared")
+include(":cli")
