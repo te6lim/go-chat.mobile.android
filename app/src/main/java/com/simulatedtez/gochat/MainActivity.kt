@@ -1,17 +1,16 @@
 package com.simulatedtez.gochat
 
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -41,46 +40,37 @@ import com.simulatedtez.gochat.view.redesign.SignupScreen as NewSignupScreen
 const val USE_NEW_UI = true
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
         setContent {
             GoChatTheme {
-                AppNavigation(this)
+                AppNavigation()
             }
         }
     }
 }
 
 @Composable
-fun AppNavigation(context: Context) {
+fun AppNavigation() {
+    val context = LocalContext.current
+    val appViewModel: AppViewModel = viewModel(factory = AppViewModelProvider(context))
 
-    val viewModelFactory = remember { AppViewModelProvider(context) }
-    val viewModel: AppViewModel = viewModel(factory = viewModelFactory)
-    viewModel.connectToChatService()
+    LaunchedEffect(Unit) {
+        appViewModel.connectToChatService()
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(Unit) {
         val observer = LifecycleEventObserver { _, event ->
-
             when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    viewModel.postNewPresenceStatus(PresenceStatus.AWAY)
-                }
-                Lifecycle.Event.ON_DESTROY -> {
-                    viewModel.postNewPresenceStatus(PresenceStatus.OFFLINE)
-                }
+                Lifecycle.Event.ON_RESUME  -> appViewModel.postNewPresenceStatus(PresenceStatus.AWAY)
+                Lifecycle.Event.ON_DESTROY -> appViewModel.postNewPresenceStatus(PresenceStatus.OFFLINE)
                 else -> {}
             }
         }
-
         lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val navController = rememberNavController()

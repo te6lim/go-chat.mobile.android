@@ -57,7 +57,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.simulatedtez.gochat.GoChatApplication
 import com.simulatedtez.gochat.Session.Companion.session
+import com.simulatedtez.gochat.util.INetworkMonitor
+import com.simulatedtez.gochat.util.NetworkMonitor
 import com.simulatedtez.gochat.database.DBConversation
 import com.simulatedtez.gochat.view.redesign.modals.NewMessageSheet
 import com.simulatedtez.gochat.model.ChatInfo
@@ -117,6 +120,15 @@ fun ConversationsScreen(conversationsScreenActions: ConversationsScreenActions) 
 
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Reconnect when network comes back
+    val networkCallbacks = remember {
+        object : NetworkMonitor.Callbacks {
+            override fun onAvailable() { viewModel.connectToChatService() }
+            override fun onLost() {}
+        }
+    }
+    (context.applicationContext as INetworkMonitor).setCallback(networkCallbacks)
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(Unit) {
         val observer = LifecycleEventObserver { _, event ->
@@ -128,6 +140,14 @@ fun ConversationsScreen(conversationsScreenActions: ConversationsScreenActions) 
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Mirror the old screen: connect the socket once conversations load, then
+    // drain the received-messages queue every time the list updates (the queue
+    // only processes one message at a time, so each update triggers the next).
+    LaunchedEffect(allConversations) {
+        if (allConversations.isNotEmpty()) viewModel.connectToChatService()
+        viewModel.popReceivedMessagesQueue()
     }
 
     LaunchedEffect(errorMessage) {

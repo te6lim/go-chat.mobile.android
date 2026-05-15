@@ -11,7 +11,7 @@ object JvmSession : ISession {
     override var accessToken: String = ""
     override var tokenExpiryMs: Long = 0L
     override var isReadReceiptEnabled: Boolean = false
-    override var canSharePresenceStatus: Boolean = false
+    override var canSharePresenceStatus: Boolean = true
     override var appWideChatService: ChatEngine<Message>? = null
 
     override fun saveTokenDetails(accessToken: String, expiryTime: String) {

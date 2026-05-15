@@ -16,8 +16,8 @@ import com.simulatedtez.gochat.remote.client
 import com.simulatedtez.gochat.repository.LoginEventListener
 import com.simulatedtez.gochat.repository.LoginRepository
 import com.simulatedtez.gochat.util.AppWideChatEventListener
-import com.simulatedtez.gochat.util.CleanupManager
 import com.simulatedtez.gochat.util.androidConfig
+import com.simulatedtez.gochat.util.newAppWideChatService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -40,13 +40,13 @@ class LoginViewModel(
     }
 
     override fun onLoginFailed(errorResponse: IResponse.Failure<ParentResponse<LoginResponse>>) {
-        _isLoggingIn.value = false
-        _isLoginSuccessful.value = false
+        _isLoggingIn.postValue(false)
+        _isLoginSuccessful.postValue(false)
     }
 
     override fun onLogin(loginInfo: LoginResponse) {
-        _isLoginSuccessful.value = true
-        _isLoggingIn.value = false
+        _isLoginSuccessful.postValue(true)
+        _isLoggingIn.postValue(false)
     }
 
     fun resetLoginState() { _isLoginSuccessful.postValue(null) }
@@ -62,7 +62,7 @@ class LoginViewModelFactory(private val context: Context): ViewModelProvider.Fac
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val repo = LoginRepository(
             LoginUsecase(AuthApiService(client, androidConfig)),
-            CleanupManager.get(context)
+            session
         )
         return LoginViewModel(repo).apply {
             repo.setEventListener(this)

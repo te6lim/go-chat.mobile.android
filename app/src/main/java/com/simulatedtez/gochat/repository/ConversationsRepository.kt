@@ -2,6 +2,7 @@ package com.simulatedtez.gochat.repository
 
 import ChatServiceErrorResponse
 import com.simulatedtez.gochat.Session
+import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.UserPreference
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
@@ -33,7 +34,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.util.UUID
 
-class ConversationsRepository(
+class AndroidConversationsRepository(
     private val addNewChatUsecase: AddNewChatUsecase,
     createConversationsUsecase: CreateConversationsUsecase,
     private val chatApiService: IChatApiService,
@@ -54,9 +55,9 @@ class ConversationsRepository(
         val local = conversationDB.getConversations()
         if (local.isNotEmpty()) return local
 
-        val response = chatApiService.fetchUserConversations(Session.session.username)
+        val response = chatApiService.fetchUserConversations(session.username)
         if (response is IResponse.Success) {
-            val summaries = response.data?.data ?: return emptyList()
+            val summaries = response.data.data ?: return emptyList()
             val seeded = summaries.map { s ->
                 val isGroup = s.chatType == "group"
                 DBConversation(

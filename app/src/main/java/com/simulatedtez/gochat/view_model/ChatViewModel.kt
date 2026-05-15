@@ -9,7 +9,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.ChatDatabase
+import com.simulatedtez.gochat.database.ChatStorageAdapter
 import com.simulatedtez.gochat.database.ConversationDatabase
+import com.simulatedtez.gochat.database.ConversationStoreAdapter
 import com.simulatedtez.gochat.listener.ChatEventListener
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.ChatPage
@@ -131,7 +133,7 @@ class ChatViewModel(
 
     fun exitChat() { chatRepo.killChatService() }
 
-    override fun onClose(code: Int, reason: String) { _isConnected.value = false }
+    override fun onClose(code: Int, reason: String) { _isConnected.postValue(false) }
 
     override fun onSend(message: Message) {
         Napier.d("message: ${message.message} sent to ${chatInfo.recipientsUsernames[0]}")
@@ -139,33 +141,33 @@ class ChatViewModel(
 
     override fun onConnect() {
         Napier.d("socket connected")
-        _isConnected.value = true
+        _isConnected.postValue(true)
     }
 
     override fun onDisconnect(t: Throwable, response: Response?) {
         Napier.d("socket disconnected")
-        _isConnected.value = false
+        _isConnected.postValue(false)
     }
 
     override fun onError(error: ChatServiceErrorResponse<Message>) { Napier.d(error.reason) }
 
     override fun onReceiveRecipientActivityStatusMessage(presenceStatus: PresenceStatus) {
-        _recipientStatus.value = presenceStatus
+        _recipientStatus.postValue(presenceStatus)
     }
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
         when (messageStatus) {
-            MessageStatus.TYPING -> _isUserTyping.value = true
-            MessageStatus.INVITE_PENDING -> _isInvitePending.value = true
+            MessageStatus.TYPING -> _isUserTyping.postValue(true)
+            MessageStatus.INVITE_PENDING -> _isInvitePending.postValue(true)
             MessageStatus.DELIVERED -> {
-                _isUserTyping.value = false
-                _recipientMessageStatus.value = MessageStatus.DELIVERED
+                _isUserTyping.postValue(false)
+                _recipientMessageStatus.postValue(MessageStatus.DELIVERED)
             }
             MessageStatus.SEEN -> {
-                _isUserTyping.value = false
-                _recipientMessageStatus.value = MessageStatus.SEEN
+                _isUserTyping.postValue(false)
+                _recipientMessageStatus.postValue(MessageStatus.SEEN)
             }
-            else -> _isUserTyping.value = false
+            else -> _isUserTyping.postValue(false)
         }
     }
 
@@ -188,7 +190,7 @@ class ChatViewModel(
     override fun onMessageSent(message: Message) {
         if (sentMessagesQueue.isEmpty()) {
             sentMessagesQueue.add(message)
-            _messagesSent.value = message.toUIMessage(true)
+            _messagesSent.postValue(message.toUIMessage(true))
         } else {
             sentMessagesQueue.add(message)
         }
@@ -198,7 +200,7 @@ class ChatViewModel(
         _isUserTyping.postValue(false)
         if (receivedMessagesQueue.isEmpty()) {
             receivedMessagesQueue.add(message)
-            _newMessage.value = message.toUIMessage(true)
+            _newMessage.postValue(message.toUIMessage(true))
         } else {
             receivedMessagesQueue.add(message)
         }
@@ -221,9 +223,11 @@ class ChatViewModelProvider(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val repo = ChatRepository(
             chatInfo = chatInfo,
-            CreateChatRoomUsecase(ChatApiService(client, session, androidConfig)),
-            chatDb = ChatDatabase.get(context),
-            ConversationDatabase.get(context)
+            createChatRoomUsecase = CreateChatRoomUsecase(ChatApiService(client, session, androidConfig)),
+            chatDb = ChatStorageAdapter(ChatDatabase.get(context)),
+            conversationStore = ConversationStoreAdapter(ConversationDatabase.get(context)),
+            session = session,
+            config = androidConfig
         )
         return ChatViewModel(chatInfo, repo).apply {
             repo.setChatEventListener(this)

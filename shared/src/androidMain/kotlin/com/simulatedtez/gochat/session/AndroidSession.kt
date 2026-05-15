@@ -16,7 +16,7 @@ open class AndroidSession private constructor() : ISession {
         protected set
     override var isReadReceiptEnabled: Boolean = false
         protected set
-    override var canSharePresenceStatus: Boolean = false
+    override var canSharePresenceStatus: Boolean = true
     override var appWideChatService: ChatEngine<Message>? = null
         protected set
 

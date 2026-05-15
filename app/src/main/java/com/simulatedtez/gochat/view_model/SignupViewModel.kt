@@ -42,18 +42,18 @@ class SignupViewModel(
     }
 
     override fun onSignUp() {
-        _isSigningUp.value = false
-        _isSignupSuccessful.value = true
+        _isSigningUp.postValue(false)
+        _isSignupSuccessful.postValue(true)
     }
 
     override fun onSignUpAndLoginSuccess() {
-        _isSigningUp.value = false
-        _isAutoLoginSuccessful.value = true
+        _isSigningUp.postValue(false)
+        _isAutoLoginSuccessful.postValue(true)
     }
 
     override fun onSignUpFailed(errorResponse: IResponse.Failure<ParentResponse<String>>) {
-        _isSigningUp.value = false
-        _isSignupSuccessful.value = false
+        _isSigningUp.postValue(false)
+        _isSignupSuccessful.postValue(false)
     }
 
     fun initializeAppWideChatService(context: Context) {
@@ -68,7 +68,8 @@ class SignupViewModelProvider(private val context: Context): ViewModelProvider.F
         val authApiService = AuthApiService(client, androidConfig)
         val repo = SignupRepository(
             SignupUsecase(authApiService),
-            LoginUsecase(authApiService)
+            LoginUsecase(authApiService),
+            session
         )
         return SignupViewModel(repo).apply {
             repo.setEventListener(this)

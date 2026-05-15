@@ -8,6 +8,7 @@ import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.model.enums.MessageStatus
 import com.simulatedtez.gochat.model.enums.PresenceStatus
+import com.simulatedtez.gochat.model.response.LoginResponse
 import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.remote.IResponse
 import com.simulatedtez.gochat.remote.ParentResponse
@@ -34,7 +35,6 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
@@ -130,12 +130,12 @@ class CommandHandler(private val scope: CoroutineScope) {
         Printer.info("Logging in as $username...")
         suspendCancellableCoroutine { cont ->
             loginRepo.setEventListener(object : LoginEventListener {
-                override fun onLogin(loginInfo: com.simulatedtez.gochat.model.response.LoginResponse) {
+                override fun onLogin(loginInfo: LoginResponse) {
                     Printer.info("Logged in as ${session.username}.")
                     setupAppWideService()
                     cont.resume(Unit)
                 }
-                override fun onLoginFailed(errorResponse: IResponse.Failure<ParentResponse<com.simulatedtez.gochat.model.response.LoginResponse>>) {
+                override fun onLoginFailed(errorResponse: IResponse.Failure<ParentResponse<LoginResponse>>) {
                     Printer.error("Login failed: ${errorResponse.reason}")
                     cont.resume(Unit)
                 }
@@ -199,7 +199,11 @@ class CommandHandler(private val scope: CoroutineScope) {
 
     private fun setupAppWideService() {
         if (session.appWideChatService == null) {
-            session.appWideChatService = newAppWideChatService(session.username, conversationsRepo, config, session)
+            session.appWideChatService = newAppWideChatService(
+                session.username,
+                conversationsRepo,
+                config
+            )
         }
         scope.launch { conversationsRepo.connectToChatService() }
     }

@@ -5,40 +5,38 @@ import MessageReturner
 import com.simulatedtez.gochat.config.IConfig
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.Message
-import com.simulatedtez.gochat.session.ISession
 import listeners.ChatEngineEventListener
 
 fun newPrivateChat(
     chatInfo: ChatInfo,
     eventListener: ChatEngineEventListener<Message>,
     config: IConfig,
-    session: ISession
+    username: String,
 ): ChatEngine<Message> {
     return ChatEngine.Builder<Message>()
         .setSocketURL("${config.wsBaseUrl}/room/${chatInfo.chatReference}?me=${chatInfo.username}")
         .setUsername(chatInfo.username)
         .setExpectedReceivers(chatInfo.recipientsUsernames)
         .setChatServiceListener(eventListener)
-        .setMessageReturner(socketMessageLabeler(session))
+        .setMessageReturner(socketMessageLabeler(username))
         .build(Message.serializer())
 }
 
 fun newAppWideChatService(
     username: String,
     eventListener: ChatEngineEventListener<Message>,
-    config: IConfig,
-    session: ISession
+    config: IConfig
 ): ChatEngine<Message> {
     return ChatEngine.Builder<Message>()
         .setSocketURL("${config.wsBaseUrl}/conversations/$username")
         .setUsername(username)
         .setExpectedReceivers(listOf())
         .setChatServiceListener(eventListener)
-        .setMessageReturner(socketMessageLabeler(session))
+        .setMessageReturner(socketMessageLabeler(username))
         .build(Message.serializer())
 }
 
-private fun socketMessageLabeler(session: ISession): MessageReturner<Message> {
+private fun socketMessageLabeler(username: String): MessageReturner<Message> {
     return object : MessageReturner<Message> {
         override fun returnMessage(message: Message): Message = Message(
             id = message.id,
@@ -53,7 +51,7 @@ private fun socketMessageLabeler(session: ISession): MessageReturner<Message> {
         )
 
         override fun isMessageReturnable(message: Message): Boolean =
-            message.sender != session.username
+            message.sender != username
                 && message.deliveredTimestamp == null
                 && message.presenceStatus.isNullOrEmpty()
                 && message.messageStatus.isNullOrEmpty()

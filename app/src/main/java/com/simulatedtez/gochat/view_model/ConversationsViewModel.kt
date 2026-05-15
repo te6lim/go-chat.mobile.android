@@ -26,7 +26,7 @@ import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatUsecase
 import com.simulatedtez.gochat.remote.client
-import com.simulatedtez.gochat.repository.ConversationsRepository
+import com.simulatedtez.gochat.repository.AndroidConversationsRepository
 import com.simulatedtez.gochat.util.androidConfig
 import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
@@ -40,7 +40,7 @@ import java.util.LinkedList
 import java.util.Queue
 
 class ConversationsViewModel(
-    private val conversationsRepository: ConversationsRepository
+    private val conversationsRepository: AndroidConversationsRepository
 ): ViewModel(), ConversationEventListener {
 
     private val _waiting = MutableLiveData<Boolean>()
@@ -176,17 +176,17 @@ class ConversationsViewModel(
     }
 
     override fun onClose(code: Int, reason: String) {
-        _isConnected.value = false
+        _isConnected.postValue(false)
     }
 
     override fun onConnect() {
         Napier.d("socket connected")
-        _isConnected.value = true
+        _isConnected.postValue(true)
     }
 
     override fun onDisconnect(t: Throwable, response: Response?) {
         Napier.d("socket disconnected")
-        _isConnected.value = false
+        _isConnected.postValue(false)
     }
 
     override fun onError(error: ChatServiceErrorResponse<Message>) {}
@@ -246,13 +246,13 @@ class ConversationsViewModel(
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
         when (messageStatus) {
-            MessageStatus.TYPING -> _isUserTyping.value = chatRef to true
-            else -> _isUserTyping.value = chatRef to false
+            MessageStatus.TYPING -> _isUserTyping.postValue(chatRef to true)
+            else -> _isUserTyping.postValue(chatRef to false)
         }
     }
 
     override fun onReceive(message: Message) {
-        _isUserTyping.value = message.chatReference to false
+        _isUserTyping.postValue(message.chatReference to false)
         viewModelScope.launch(Dispatchers.Default) {
             if (receivedMessagesQueue.isEmpty()) {
                 receivedMessagesQueue.add(message)
@@ -275,7 +275,7 @@ class ConversationsViewModelProvider(private val context: Context): ViewModelPro
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val chatApiService = ChatApiService(client, session, androidConfig)
         val conversationsApiService = ConversationsApiService(client, session, androidConfig)
-        val repo = ConversationsRepository(
+        val repo = AndroidConversationsRepository(
             AddNewChatUsecase(conversationsApiService),
             createConversationsUsecase = CreateConversationsUsecase(chatApiService),
             chatApiService = chatApiService,

@@ -50,7 +50,7 @@ class ChatRepository(
     private val cutOffForMarkingMessagesAsSeen = session.getCutOffDateForMarkingMessagesAsSeen()
 
     private var chatEventListener: ChatEventListener? = null
-    private var chatService = newPrivateChat(chatInfo, this, config, session)
+    private var chatService = newPrivateChat(chatInfo, this, config, session.username)
 
     val userPresenceHelper = UserPresenceHelper(chatService, PresenceStatus.ONLINE, chatInfo, session)
 

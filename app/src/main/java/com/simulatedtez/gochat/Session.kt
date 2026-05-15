@@ -71,8 +71,8 @@ open class Session private constructor() : ISession {
     }
 
     fun setupAppWideChatService(eventListener: ChatEngineEventListener<Message>) {
-        if (appWideChatService == null) {
-            appWideChatService = newAppWideChatService(session.username, eventListener, androidConfig, session)
+        if (appWideChatService == null && !session.username.isEmpty()) {
+            appWideChatService = newAppWideChatService(session.username, eventListener, androidConfig)
         }
     }
 
