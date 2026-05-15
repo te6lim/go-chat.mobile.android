@@ -9,19 +9,22 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.ChatDatabase
-import com.simulatedtez.gochat.model.Message
+import com.simulatedtez.gochat.database.ChatStorageAdapter
+import com.simulatedtez.gochat.database.ConversationDatabase
+import com.simulatedtez.gochat.database.ConversationStoreAdapter
 import com.simulatedtez.gochat.listener.ChatEventListener
-import com.simulatedtez.gochat.model.enums.PresenceStatus
-import com.simulatedtez.gochat.repository.ChatRepository
 import com.simulatedtez.gochat.model.ChatInfo
 import com.simulatedtez.gochat.model.ChatPage
+import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.model.enums.MessageStatus
+import com.simulatedtez.gochat.model.enums.PresenceStatus
 import com.simulatedtez.gochat.model.ui.UIMessage
 import com.simulatedtez.gochat.remote.api_services.ChatApiService
 import com.simulatedtez.gochat.remote.api_usecases.CreateChatRoomUsecase
-import com.simulatedtez.gochat.model.toUIMessage
-import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.remote.client
+import com.simulatedtez.gochat.repository.ChatRepository
+import com.simulatedtez.gochat.util.androidConfig
+import com.simulatedtez.gochat.util.toUIMessage
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -49,9 +52,7 @@ class ChatViewModel(
     var newCharCount = 0
 
     val isTyping: Boolean
-        get() {
-            return initialCharCount < newCharCount
-        }
+        get() = initialCharCount < newCharCount
 
     private val _messagesSent = MutableLiveData<UIMessage>()
     val messagesSent: LiveData<UIMessage> = _messagesSent
@@ -80,9 +81,7 @@ class ChatViewModel(
     private val sentMessagesQueue: Queue<Message> = LinkedList()
     private val receivedMessagesQueue: Queue<Message> = LinkedList()
 
-    fun stopTypingTimer() {
-        _typingTimeLeft.value = null
-    }
+    fun stopTypingTimer() { _typingTimeLeft.value = null }
 
     fun restartTypingTimer(charCount: Int) {
         newCharCount = charCount
@@ -94,9 +93,7 @@ class ChatViewModel(
         _typingTimeLeft.value = _typingTimeLeft.value?.minus(amount)
     }
 
-    fun resetSendAttempt() {
-        _sendMessageAttempt.value = null
-    }
+    fun resetSendAttempt() { _sendMessageAttempt.value = null }
 
     fun loadMessages() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -105,9 +102,9 @@ class ChatViewModel(
     }
 
     fun sendMessage(message: String) {
-        val message = chatRepo.buildUnsentMessage(message)
-        _sendMessageAttempt.value = message.toUIMessage(false)
-        chatRepo.sendMessage(message)
+        val msg = chatRepo.buildUnsentMessage(message)
+        _sendMessageAttempt.value = msg.toUIMessage(false)
+        chatRepo.sendMessage(msg)
     }
 
     fun postMessageStatus(messageStatus: MessageStatus) {
@@ -115,42 +112,28 @@ class ChatViewModel(
     }
 
     fun postPresence(presenceStatus: PresenceStatus) {
-        chatRepo.userPresenceHelper.postPresence(
-            presenceStatus, chatInfo.chatReference
-        )
+        chatRepo.userPresenceHelper.postPresence(presenceStatus, chatInfo.chatReference)
     }
 
     fun markConversationAsOpened() {
-        viewModelScope.launch(Dispatchers.IO) {
-            chatRepo.markConversationAsOpened()
-        }
+        viewModelScope.launch(Dispatchers.IO) { chatRepo.markConversationAsOpened() }
     }
 
     fun markMessagesAsSeenIfEnabled(messages: List<Message>) {
         messages.forEach {
-            if (it.seenTimestamp.isNullOrEmpty()) {
-                if (it.isReadReceiptEnabled == true) {
-                    chatRepo.markMessagesAsSeen(it)
-                }
+            if (it.seenTimestamp.isNullOrEmpty() && it.isReadReceiptEnabled == true) {
+                chatRepo.markMessagesAsSeen(it)
             }
         }
     }
 
-    fun connectAndSendPendingMessages() {
-        chatRepo.connectAndSendPendingMessages()
-    }
+    fun connectAndSendPendingMessages() { chatRepo.connectAndSendPendingMessages() }
 
-    fun deleteMessage(message: com.simulatedtez.gochat.model.Message) {
-        chatRepo.sendMessageForBackupOrDeletion(message)
-    }
+    fun deleteMessage(message: Message) { chatRepo.sendMessageForBackupOrDeletion(message) }
 
-    fun exitChat() {
-        chatRepo.killChatService()
-    }
+    fun exitChat() { chatRepo.killChatService() }
 
-    override fun onClose(code: Int, reason: String) {
-        _isConnected.value = false
-    }
+    override fun onClose(code: Int, reason: String) { _isConnected.postValue(false) }
 
     override fun onSend(message: Message) {
         Napier.d("message: ${message.message} sent to ${chatInfo.recipientsUsernames[0]}")
@@ -158,64 +141,56 @@ class ChatViewModel(
 
     override fun onConnect() {
         Napier.d("socket connected")
-        _isConnected.value = true
+        _isConnected.postValue(true)
     }
 
     override fun onDisconnect(t: Throwable, response: Response?) {
         Napier.d("socket disconnected")
-        _isConnected.value = false
+        _isConnected.postValue(false)
     }
 
-    override fun onError(error: ChatServiceErrorResponse<Message>) {
-        Napier.d(error.reason)
-    }
+    override fun onError(error: ChatServiceErrorResponse<Message>) { Napier.d(error.reason) }
 
     override fun onReceiveRecipientActivityStatusMessage(presenceStatus: PresenceStatus) {
-        _recipientStatus.value = presenceStatus
+        _recipientStatus.postValue(presenceStatus)
     }
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
         when (messageStatus) {
-            MessageStatus.TYPING -> _isUserTyping.value = true
-            MessageStatus.INVITE_PENDING -> _isInvitePending.value = true
+            MessageStatus.TYPING -> _isUserTyping.postValue(true)
+            MessageStatus.INVITE_PENDING -> _isInvitePending.postValue(true)
             MessageStatus.DELIVERED -> {
-                _isUserTyping.value = false
-                _recipientMessageStatus.value = MessageStatus.DELIVERED
+                _isUserTyping.postValue(false)
+                _recipientMessageStatus.postValue(MessageStatus.DELIVERED)
             }
             MessageStatus.SEEN -> {
-                _isUserTyping.value = false
-                _recipientMessageStatus.value = MessageStatus.SEEN
+                _isUserTyping.postValue(false)
+                _recipientMessageStatus.postValue(MessageStatus.SEEN)
             }
-            else -> _isUserTyping.value = false
+            else -> _isUserTyping.postValue(false)
         }
     }
 
-    fun resetRecipientMessageStatus() {
-        _recipientMessageStatus.value = null
-    }
+    fun resetRecipientMessageStatus() { _recipientMessageStatus.value = null }
 
     fun popSentMessagesQueue() {
         if (sentMessagesQueue.isNotEmpty()) {
             sentMessagesQueue.remove()
-            sentMessagesQueue.peek()?.let {
-                _messagesSent.value = it.toUIMessage(true)
-            }
+            sentMessagesQueue.peek()?.let { _messagesSent.value = it.toUIMessage(true) }
         }
     }
 
     fun popReceivedMessagesQueue() {
         if (receivedMessagesQueue.isNotEmpty()) {
             receivedMessagesQueue.remove()
-            receivedMessagesQueue.peek()?.let {
-                _newMessage.value = it.toUIMessage(true)
-            }
+            receivedMessagesQueue.peek()?.let { _newMessage.value = it.toUIMessage(true) }
         }
     }
 
     override fun onMessageSent(message: Message) {
         if (sentMessagesQueue.isEmpty()) {
             sentMessagesQueue.add(message)
-            _messagesSent.value = message.toUIMessage(true)
+            _messagesSent.postValue(message.toUIMessage(true))
         } else {
             sentMessagesQueue.add(message)
         }
@@ -225,7 +200,7 @@ class ChatViewModel(
         _isUserTyping.postValue(false)
         if (receivedMessagesQueue.isEmpty()) {
             receivedMessagesQueue.add(message)
-            _newMessage.value = message.toUIMessage(true)
+            _newMessage.postValue(message.toUIMessage(true))
         } else {
             receivedMessagesQueue.add(message)
         }
@@ -236,17 +211,10 @@ class ChatViewModel(
         chatRepo.cancel()
     }
 
-    fun isChatServiceConnected(): Boolean {
-        return chatRepo.isChatServiceConnected()
-    }
+    fun isChatServiceConnected(): Boolean = chatRepo.isChatServiceConnected()
 
     fun onUserPresenceOnline(action: () -> Unit) {
-        when (chatRepo.userPresenceHelper.presenceStatus) {
-            PresenceStatus.ONLINE -> {
-                action()
-            }
-            else -> {}
-        }
+        if (chatRepo.userPresenceHelper.presenceStatus == PresenceStatus.ONLINE) action()
     }
 }
 
@@ -255,14 +223,14 @@ class ChatViewModelProvider(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val repo = ChatRepository(
             chatInfo = chatInfo,
-            CreateChatRoomUsecase(ChatApiService(client)),
-            chatDb = ChatDatabase.get(context),
-            ConversationDatabase.get(context)
+            createChatRoomUsecase = CreateChatRoomUsecase(ChatApiService(client, session, androidConfig)),
+            chatDb = ChatStorageAdapter(ChatDatabase.get(context)),
+            conversationStore = ConversationStoreAdapter(ConversationDatabase.get(context)),
+            session = session,
+            config = androidConfig
         )
-
-        val chatViewModel = ChatViewModel(chatInfo, repo).apply {
+        return ChatViewModel(chatInfo, repo).apply {
             repo.setChatEventListener(this)
-        }
-        return chatViewModel as T
+        } as T
     }
 }

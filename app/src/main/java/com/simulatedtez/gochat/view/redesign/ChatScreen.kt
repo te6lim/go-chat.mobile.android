@@ -269,10 +269,10 @@ fun ChatScreen(chatInfo: ChatInfo, chatScreenActions: ChatScreenActions) {
     LaunchedEffect(sentMessage) {
         sentMessage?.let {
             messages.add(it)
+            chatViewModel.resetSendAttempt()
             if (listState.firstVisibleItemIndex <= 2) {
                 listState.animateScrollToItem(0)
             }
-            chatViewModel.resetSendAttempt()
         }
     }
 
@@ -291,7 +291,12 @@ fun ChatScreen(chatInfo: ChatInfo, chatScreenActions: ChatScreenActions) {
 
     LaunchedEffect(newMessage) {
         newMessage?.let {
-            messages.add(it)
+            // Guard against duplicates: pagedMessages may already contain this message
+            // with a different status value (UIMessage equality includes status), which
+            // would let both copies into the Set and cause a LazyColumn key collision.
+            if (messages.none { m -> m.message.id == it.message.id }) {
+                messages.add(it)
+            }
             chatViewModel.onUserPresenceOnline {
                 chatViewModel.markMessagesAsSeenIfEnabled(listOf(it.message))
             }

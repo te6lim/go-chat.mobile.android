@@ -2,15 +2,21 @@ package com.simulatedtez.gochat.repository
 
 import ChatServiceErrorResponse
 import com.simulatedtez.gochat.Session
+import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.UserPreference
-import com.simulatedtez.gochat.database.IChatStorage
-import com.simulatedtez.gochat.model.enums.MessageStatus
-import com.simulatedtez.gochat.model.enums.PresenceStatus
-import com.simulatedtez.gochat.model.Message
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
+import com.simulatedtez.gochat.database.IChatStorage
 import com.simulatedtez.gochat.listener.ConversationEventListener
+import com.simulatedtez.gochat.model.Message
+import com.simulatedtez.gochat.model.enums.MessageStatus
+import com.simulatedtez.gochat.model.enums.PresenceStatus
 import com.simulatedtez.gochat.model.response.GroupChatResponse
+import com.simulatedtez.gochat.model.response.NewChatResponse
+import com.simulatedtez.gochat.remote.IResponse
+import com.simulatedtez.gochat.remote.IResponseHandler
+import com.simulatedtez.gochat.remote.ParentResponse
+import com.simulatedtez.gochat.remote.Response
 import com.simulatedtez.gochat.remote.api_interfaces.IChatApiService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsParams
@@ -18,11 +24,6 @@ import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatParams
 import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.StartNewChatParams
-import com.simulatedtez.gochat.model.response.NewChatResponse
-import com.simulatedtez.gochat.remote.IResponse
-import com.simulatedtez.gochat.remote.IResponseHandler
-import com.simulatedtez.gochat.remote.ParentResponse
-import com.simulatedtez.gochat.remote.Response
 import com.simulatedtez.gochat.util.AppWideChatEventListener
 import com.simulatedtez.gochat.util.toISOString
 import io.github.aakira.napier.Napier
@@ -33,7 +34,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.util.UUID
 
-class ConversationsRepository(
+class AndroidConversationsRepository(
     private val addNewChatUsecase: AddNewChatUsecase,
     createConversationsUsecase: CreateConversationsUsecase,
     private val chatApiService: IChatApiService,
@@ -54,10 +55,9 @@ class ConversationsRepository(
         val local = conversationDB.getConversations()
         if (local.isNotEmpty()) return local
 
-        // Fresh install — seed from backend.
-        val response = chatApiService.fetchUserConversations(Session.session.username)
+        val response = chatApiService.fetchUserConversations(session.username)
         if (response is IResponse.Success) {
-            val summaries = response.data?.data ?: return emptyList()
+            val summaries = response.data.data ?: return emptyList()
             val seeded = summaries.map { s ->
                 val isGroup = s.chatType == "group"
                 DBConversation(
@@ -76,7 +76,7 @@ class ConversationsRepository(
     override suspend fun createNewConversations(onSuccess: (() -> Unit)) {
         val params = CreateConversationsParams(
             request = CreateConversationsParams.Request(
-                username = Session.Companion.session.username
+                username = Session.session.username
             )
         )
         createConversationsUsecase.call(
@@ -84,18 +84,14 @@ class ConversationsRepository(
                 IResponseHandler<ParentResponse<String>, IResponse<ParentResponse<String>>> {
                 override fun onResponse(response: IResponse<ParentResponse<String>>) {
                     when(response) {
-                        is IResponse.Success -> {
-                            onSuccess()
-                        }
+                        is IResponse.Success -> onSuccess()
                         is IResponse.Failure -> {
                             Napier.d(response.response?.message ?: "unknown")
                             context.launch(Dispatchers.Main) {
                                 conversationEventListener?.onError(response)
                             }
                         }
-                        else -> {
-
-                        }
+                        else -> {}
                     }
                 }
             }
@@ -130,9 +126,7 @@ class ConversationsRepository(
 
     private suspend fun addNewChat(username: String, otherUser: String, messageCount: Int, completion: (isSuccess: Boolean) -> Unit) {
         val params = StartNewChatParams(
-            request = StartNewChatParams.Request(
-                user = username, other = otherUser
-            )
+            request = StartNewChatParams.Request(user = username, other = otherUser)
         )
         addNewChatUsecase.call(
             params, object:
@@ -166,7 +160,6 @@ class ConversationsRepository(
                            conversationEventListener?.onAddNewChatFailed(response)
                        }
                    }
-
                    is Response<*> -> {}
                }
             }
@@ -255,14 +248,11 @@ class ConversationsRepository(
             return
         }
 
-        context.launch(Dispatchers.IO) {
-            chatDb.store(message)
-        }
+        context.launch(Dispatchers.IO) { chatDb.store(message) }
         if (!isNewChat(message.chatReference)) {
             conversationEventListener?.onReceive(message)
         } else {
-            UserPreference.storeChatHistoryStatus(
-                message.chatReference, false)
+            UserPreference.storeChatHistoryStatus(message.chatReference, false)
             conversationEventListener?.onReceive(message)
         }
     }
@@ -305,9 +295,7 @@ class ConversationsRepository(
     suspend fun addNewConversation(other: String, messageCount: Int) {
         addNewChat(Session.session.username, other, messageCount) { isAdded ->
             if (isAdded) {
-                context.launch(Dispatchers.IO) {
-                    connectToChatService()
-                }
+                context.launch(Dispatchers.IO) { connectToChatService() }
             }
         }
     }
@@ -337,9 +325,7 @@ class ConversationsRepository(
                                             chatName = groupChat.name
                                         )
                                     )
-                                    context.launch(Dispatchers.Main) {
-                                        onSuccess(groupChat)
-                                    }
+                                    context.launch(Dispatchers.Main) { onSuccess(groupChat) }
                                 }
                             }
                         }

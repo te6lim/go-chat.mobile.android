@@ -9,23 +9,25 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.database.ChatDatabase
-import com.simulatedtez.gochat.model.ChatInfo
-import com.simulatedtez.gochat.model.enums.MessageStatus
-import com.simulatedtez.gochat.model.enums.PresenceStatus
-import com.simulatedtez.gochat.remote.api_services.ChatApiService
-import com.simulatedtez.gochat.model.Message
-import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.database.ConversationDatabase
 import com.simulatedtez.gochat.database.DBConversation
+import com.simulatedtez.gochat.model.ChatInfo
+import com.simulatedtez.gochat.model.Message
+import com.simulatedtez.gochat.model.enums.MessageStatus
+import com.simulatedtez.gochat.model.enums.PresenceStatus
+import com.simulatedtez.gochat.model.response.NewChatResponse
 import com.simulatedtez.gochat.listener.ConversationEventListener
-import com.simulatedtez.gochat.remote.api_services.ConversationsService
+import com.simulatedtez.gochat.remote.IResponse
+import com.simulatedtez.gochat.remote.ParentResponse
+import com.simulatedtez.gochat.remote.api_services.AuthApiService
+import com.simulatedtez.gochat.remote.api_services.ChatApiService
+import com.simulatedtez.gochat.remote.api_services.ConversationsApiService
 import com.simulatedtez.gochat.remote.api_usecases.AddNewChatUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateConversationsUsecase
 import com.simulatedtez.gochat.remote.api_usecases.CreateGroupChatUsecase
-import com.simulatedtez.gochat.repository.ConversationsRepository
-import com.simulatedtez.gochat.remote.IResponse
-import com.simulatedtez.gochat.remote.ParentResponse
 import com.simulatedtez.gochat.remote.client
+import com.simulatedtez.gochat.repository.AndroidConversationsRepository
+import com.simulatedtez.gochat.util.androidConfig
 import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +40,7 @@ import java.util.LinkedList
 import java.util.Queue
 
 class ConversationsViewModel(
-    private val conversationsRepository: ConversationsRepository
+    private val conversationsRepository: AndroidConversationsRepository
 ): ViewModel(), ConversationEventListener {
 
     private val _waiting = MutableLiveData<Boolean>()
@@ -143,8 +145,9 @@ class ConversationsViewModel(
 
     override fun onAddNewChatFailed(error: IResponse.Failure<ParentResponse<NewChatResponse>>) {
         _waiting.value = false
-        if (error.response?.statusCode == HttpStatusCode.NotFound.value) {
-            _errorMessage.value = error.response.message
+        val response = error.response
+        if (response?.statusCode == HttpStatusCode.NotFound.value) {
+            _errorMessage.value = response.message
         }
     }
 
@@ -160,8 +163,7 @@ class ConversationsViewModel(
         }
     }
 
-    override fun onError(response: IResponse.Failure<ParentResponse<String>>) {
-    }
+    override fun onError(response: IResponse.Failure<ParentResponse<String>>) {}
 
     fun postPresence(presenceStatus: PresenceStatus) {
         conversationsRepository.userPresenceHelper.postNewUserPresence(presenceStatus)
@@ -174,22 +176,20 @@ class ConversationsViewModel(
     }
 
     override fun onClose(code: Int, reason: String) {
-        _isConnected.value = false
+        _isConnected.postValue(false)
     }
 
     override fun onConnect() {
         Napier.d("socket connected")
-        _isConnected.value = true
+        _isConnected.postValue(true)
     }
 
     override fun onDisconnect(t: Throwable, response: Response?) {
         Napier.d("socket disconnected")
-        _isConnected.value = false
+        _isConnected.postValue(false)
     }
 
-    override fun onError(error: ChatServiceErrorResponse<Message>) {
-
-    }
+    override fun onError(error: ChatServiceErrorResponse<Message>) {}
 
     fun popReceivedMessagesQueue() {
         if (receivedMessagesQueue.isNotEmpty()) {
@@ -212,7 +212,6 @@ class ConversationsViewModel(
     }
 
     override fun onInviteAccepted(chatReference: String) {
-        // Someone accepted OUR invite — clear pending state then refresh
         viewModelScope.launch(Dispatchers.IO) {
             conversationsRepository.clearPendingSentInvite(chatReference)
             _conversations.postValue(conversationsRepository.getConversations().toMutableList())
@@ -220,12 +219,10 @@ class ConversationsViewModel(
     }
 
     override fun onInviteRevoked(chatReference: String) {
-        // The sender revoked their invite — remove from our received pending list
         _pendingInvites.value = _pendingInvites.value?.filter { it.chatReference != chatReference }
     }
 
     override fun onGroupInviteReceived(message: Message) {
-        // We were added to a group — refresh conversations and notify the user
         viewModelScope.launch(Dispatchers.IO) {
             _conversations.postValue(conversationsRepository.getConversations().toMutableList())
         }
@@ -233,7 +230,6 @@ class ConversationsViewModel(
     }
 
     override fun onGroupRemoved(chatReference: String) {
-        // We were removed from a group — remove from list and notify
         viewModelScope.launch(Dispatchers.IO) {
             _conversations.postValue(conversationsRepository.getConversations().toMutableList())
         }
@@ -241,7 +237,6 @@ class ConversationsViewModel(
     }
 
     override fun onInviteDeclined(chatReference: String) {
-        // Someone declined OUR invite — clean up locally and notify user
         viewModelScope.launch(Dispatchers.IO) {
             conversationsRepository.deleteConversation(chatReference)
             _conversations.postValue(conversationsRepository.getConversations().toMutableList())
@@ -251,15 +246,13 @@ class ConversationsViewModel(
 
     override fun onReceiveRecipientMessageStatus(chatRef: String, messageStatus: MessageStatus) {
         when (messageStatus) {
-            MessageStatus.TYPING -> {
-                _isUserTyping.value = chatRef to true
-            }
-            else -> _isUserTyping.value = chatRef to false
+            MessageStatus.TYPING -> _isUserTyping.postValue(chatRef to true)
+            else -> _isUserTyping.postValue(chatRef to false)
         }
     }
 
     override fun onReceive(message: Message) {
-        _isUserTyping.value = message.chatReference to false
+        _isUserTyping.postValue(message.chatReference to false)
         viewModelScope.launch(Dispatchers.Default) {
             if (receivedMessagesQueue.isEmpty()) {
                 receivedMessagesQueue.add(message)
@@ -280,9 +273,10 @@ class ConversationsViewModel(
 
 class ConversationsViewModelProvider(private val context: Context): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        val chatApiService = ChatApiService(client)
-        val repo = ConversationsRepository(
-            AddNewChatUsecase(ConversationsService(client)),
+        val chatApiService = ChatApiService(client, session, androidConfig)
+        val conversationsApiService = ConversationsApiService(client, session, androidConfig)
+        val repo = AndroidConversationsRepository(
+            AddNewChatUsecase(conversationsApiService),
             createConversationsUsecase = CreateConversationsUsecase(chatApiService),
             chatApiService = chatApiService,
             ConversationDatabase.get(context),

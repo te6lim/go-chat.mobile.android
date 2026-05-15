@@ -12,8 +12,6 @@ import com.simulatedtez.gochat.Session.Companion.session
 import com.simulatedtez.gochat.model.enums.MessageStatus
 import com.simulatedtez.gochat.model.ui.UIMessage
 import com.simulatedtez.gochat.model.Message
-import com.simulatedtez.gochat.model.toDBMessage
-import com.simulatedtez.gochat.model.toDBMessages
 import models.ComparableMessage
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -83,13 +81,13 @@ class ChatDatabase private constructor(private val messagesDao: MessagesDao): IC
     }
 
     override suspend fun store(message: Message) {
-        messagesDao.insertMessage(message.toDBMessage().apply {
+        messagesDao.insertMessage(message.toRoomMessage().apply {
             if (sender == session.username) isSent = false
         })
     }
 
     override suspend fun store(messages: List<Message>) {
-        messagesDao.insertMessages(messages.toDBMessages().apply {
+        messagesDao.insertMessages(messages.toRoomMessages().apply {
             forEach {
                 if (it.sender == session.username) it.isSent = false
             }
@@ -112,6 +110,21 @@ class DBMessage(
     @ColumnInfo("isSent") var isSent: Boolean?,
     @ColumnInfo("isReadReceiptEnabled") var isReadReceiptEnabled: Boolean?
 ): ComparableMessage()
+
+fun Message.toRoomMessage(): DBMessage = DBMessage(
+    id = id,
+    message = message,
+    sender = sender,
+    receiver = receiver,
+    timestamp = timestamp,
+    chatReference = chatReference,
+    deliveredTimestamp = deliveredTimestamp,
+    seenTimestamp = seenTimestamp,
+    isSent = null,
+    isReadReceiptEnabled = isReadReceiptEnabled
+)
+
+fun List<Message>.toRoomMessages(): List<DBMessage> = map { it.toRoomMessage() }
 
 fun DBMessage.toUIMessage(): UIMessage {
     return UIMessage(
